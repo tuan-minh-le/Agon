@@ -82,7 +82,7 @@ struct input_devices {
 
 	inputs_keyboard_parameters  keyboard;
 	inputs_mouse_parameters     mouse;
-	float time_interval = 0;
+	float time_interval = 1;
 
 };
 
