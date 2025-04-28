@@ -14,7 +14,12 @@ void Apartment::initialize()
     // Clear any existing data before initialization
     clear();
 
-    // Create all geometry without textures
+    // Load texture resources
+    floor_texture.load_and_initialize_texture_2d_on_gpu("assets/floor.jpg", GL_REPEAT, GL_REPEAT);
+    ceiling_texture.load_and_initialize_texture_2d_on_gpu("assets/ceiling.jpg", GL_REPEAT, GL_REPEAT);
+    wall_texture.load_and_initialize_texture_2d_on_gpu("assets/wall.jpg", GL_REPEAT, GL_REPEAT);
+
+    // Create all geometry with textures
     create_floor();
     create_ceiling();
     create_walls();
@@ -28,6 +33,14 @@ void Apartment::clear()
     walls.clear();
     wall_positions.clear();
     wall_dimensions.clear();
+
+    // Only clear texture resources if they have been initialized
+    if (floor_texture.id != 0)
+        floor_texture.clear();
+    if (ceiling_texture.id != 0)
+        ceiling_texture.clear();
+    if (wall_texture.id != 0)
+        wall_texture.clear();
 }
 
 void Apartment::draw(const cgp::environment_generic_structure& environment)
@@ -50,15 +63,14 @@ void Apartment::create_floor()
         { apartment_width / 2, apartment_length / 2, 0 },
         { -apartment_width / 2, apartment_length / 2, 0 });
 
-    // Set floor texture coordinates
-    floor_mesh.uv = { {0,0}, {1,0}, {1,1}, {0,1} };
+    // Set floor texture coordinates - using a tiled approach for larger floors
+    float tiling_factor = 4.0f; // Adjust this to change texture repetition
+    floor_mesh.uv = { {0,0}, {tiling_factor,0}, {tiling_factor,tiling_factor}, {0,tiling_factor} };
 
-    // Initialize the floor drawable
-    floor.initialize_data_on_gpu(floor_mesh);
+    // Initialize the floor drawable with texture
+    floor.initialize_data_on_gpu(floor_mesh, mesh_drawable::default_shader, floor_texture);
 
-    // Simply use a color instead of texture
-    floor.material.color = vec3{ 0.6f, 0.6f, 0.6f }; // Grey color default
-
+    // Adjust material properties for the floor
     floor.material.phong.ambient = 0.5f;
     floor.material.phong.diffuse = 0.6f;
     floor.material.phong.specular = 0.2f;
@@ -73,14 +85,13 @@ void Apartment::create_ceiling()
         { -apartment_width / 2, apartment_length / 2, room_height });
 
     // Set ceiling texture coordinates
-    ceiling_mesh.uv = { {0,0}, {1,0}, {1,1}, {0,1} };
+    float tiling_factor = 3.0f; // Adjust for ceiling texture density
+    ceiling_mesh.uv = { {0,0}, {tiling_factor,0}, {tiling_factor,tiling_factor}, {0,tiling_factor} };
 
-    // Initialize the ceiling drawable
-    ceiling.initialize_data_on_gpu(ceiling_mesh);
+    // Initialize the ceiling drawable with texture
+    ceiling.initialize_data_on_gpu(ceiling_mesh, mesh_drawable::default_shader, ceiling_texture);
 
-    // Use a color for ceiling
-    ceiling.material.color = vec3{ 0.95f, 0.95f, 0.95f }; // Light color for ceiling
-
+    // Adjust material properties for the ceiling
     ceiling.material.phong.ambient = 0.5f;
     ceiling.material.phong.diffuse = 0.8f;
     ceiling.material.phong.specular = 0.1f;
@@ -90,9 +101,11 @@ void Apartment::create_walls()
 {
     // Define wall positions and dimensions for a 3-room apartment
     // Living room, bedroom, and bathroom
+    walls.clear(); // Ensure walls container is empty before adding new walls
 
-    // Common wall color
-    vec3 wall_color = { 0.9f, 0.9f, 0.85f }; // Off-white color
+    // Wall texture tiling factors
+    float horizontal_tiling = 4.0f;
+    float vertical_tiling = 1.0f;
 
     // External walls
     // Wall 1: Back wall
@@ -102,10 +115,12 @@ void Apartment::create_walls()
             { apartment_width / 2, -apartment_length / 2, room_height },
             { -apartment_width / 2, -apartment_length / 2, room_height });
 
+        // Set texture coordinates for this wall
+        wall_mesh.uv = { {0,0}, {horizontal_tiling,0}, {horizontal_tiling,vertical_tiling}, {0,vertical_tiling} };
+
         // Create a new mesh_drawable for this wall
         mesh_drawable wall;
-        wall.initialize_data_on_gpu(wall_mesh);
-        wall.material.color = wall_color;
+        wall.initialize_data_on_gpu(wall_mesh, mesh_drawable::default_shader, wall_texture);
         wall.material.phong.ambient = 0.5f;
         wall.material.phong.diffuse = 0.7f;
         wall.material.phong.specular = 0.1f;
@@ -123,9 +138,11 @@ void Apartment::create_walls()
             { apartment_width / 2, apartment_length / 2, room_height },
             { -apartment_width / 2, apartment_length / 2, room_height });
 
+        // Set texture coordinates for this wall
+        wall_mesh.uv = { {0,0}, {horizontal_tiling,0}, {horizontal_tiling,vertical_tiling}, {0,vertical_tiling} };
+
         mesh_drawable wall;
-        wall.initialize_data_on_gpu(wall_mesh);
-        wall.material.color = wall_color;
+        wall.initialize_data_on_gpu(wall_mesh, mesh_drawable::default_shader, wall_texture);
         wall.material.phong.ambient = 0.5f;
         wall.material.phong.diffuse = 0.7f;
         wall.material.phong.specular = 0.1f;
@@ -142,9 +159,11 @@ void Apartment::create_walls()
             { -apartment_width / 2, apartment_length / 2, room_height },
             { -apartment_width / 2, -apartment_length / 2, room_height });
 
+        // Set texture coordinates for this wall
+        wall_mesh.uv = { {0,0}, {horizontal_tiling,0}, {horizontal_tiling,vertical_tiling}, {0,vertical_tiling} };
+
         mesh_drawable wall;
-        wall.initialize_data_on_gpu(wall_mesh);
-        wall.material.color = wall_color;
+        wall.initialize_data_on_gpu(wall_mesh, mesh_drawable::default_shader, wall_texture);
         wall.material.phong.ambient = 0.5f;
         wall.material.phong.diffuse = 0.7f;
         wall.material.phong.specular = 0.1f;
@@ -161,9 +180,11 @@ void Apartment::create_walls()
             { apartment_width / 2, apartment_length / 2, room_height },
             { apartment_width / 2, -apartment_length / 2, room_height });
 
+        // Set texture coordinates for this wall
+        wall_mesh.uv = { {0,0}, {horizontal_tiling,0}, {horizontal_tiling,vertical_tiling}, {0,vertical_tiling} };
+
         mesh_drawable wall;
-        wall.initialize_data_on_gpu(wall_mesh);
-        wall.material.color = wall_color;
+        wall.initialize_data_on_gpu(wall_mesh, mesh_drawable::default_shader, wall_texture);
         wall.material.phong.ambient = 0.5f;
         wall.material.phong.diffuse = 0.7f;
         wall.material.phong.specular = 0.1f;
@@ -182,9 +203,11 @@ void Apartment::create_walls()
             { bedroom_x, apartment_length / 4, room_height },
             { bedroom_x, -apartment_length / 2, room_height });
 
+        // Set texture coordinates for this wall
+        wall_mesh.uv = { {0,0}, {horizontal_tiling / 2,0}, {horizontal_tiling / 2,vertical_tiling}, {0,vertical_tiling} };
+
         mesh_drawable wall;
-        wall.initialize_data_on_gpu(wall_mesh);
-        wall.material.color = wall_color;
+        wall.initialize_data_on_gpu(wall_mesh, mesh_drawable::default_shader, wall_texture);
         wall.material.phong.ambient = 0.5f;
         wall.material.phong.diffuse = 0.7f;
         wall.material.phong.specular = 0.1f;
@@ -203,9 +226,11 @@ void Apartment::create_walls()
             { bedroom_x, bathroom_y, room_height },
             { -apartment_width / 2, bathroom_y, room_height });
 
+        // Set texture coordinates for this wall
+        wall_mesh.uv = { {0,0}, {horizontal_tiling / 2,0}, {horizontal_tiling / 2,vertical_tiling}, {0,vertical_tiling} };
+
         mesh_drawable wall;
-        wall.initialize_data_on_gpu(wall_mesh);
-        wall.material.color = wall_color;
+        wall.initialize_data_on_gpu(wall_mesh, mesh_drawable::default_shader, wall_texture);
         wall.material.phong.ambient = 0.5f;
         wall.material.phong.diffuse = 0.7f;
         wall.material.phong.specular = 0.1f;
@@ -215,6 +240,7 @@ void Apartment::create_walls()
         wall_dimensions.push_back({ apartment_width / 4, 0.1f, room_height });
     }
 }
+
 
 bool Apartment::check_collision(const cgp::vec3& position, float radius)
 {

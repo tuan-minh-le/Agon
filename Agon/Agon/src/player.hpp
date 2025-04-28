@@ -3,6 +3,7 @@
 #define PLAYER_HPP
 
 #include "cgp/cgp.hpp"
+#include "apartment.hpp"
 
 class Player {
 private:
@@ -10,6 +11,7 @@ private:
     float movement_speed;
     float height;
     cgp::vec3 position;
+    float collision_radius;
 
     // New smooth movement variables
     cgp::vec3 velocity;         // Current velocity vector
@@ -31,6 +33,9 @@ private:
     // Model
     cgp::mesh_drawable player_model;
 
+    //Apartment for collision detection
+    Apartment* apartment = nullptr;
+
 public:
     // Default constructor
     Player();
@@ -42,6 +47,8 @@ public:
     void update(float dt, const cgp::inputs_keyboard_parameters& keyboard, cgp::mat4& camera_view_matrix);
     void handle_mouse_move(cgp::vec2 const& mouse_position_current, cgp::vec2 const& mouse_position_previous, cgp::mat4& camera_view_matrix);
 
+    void set_apartment(Apartment* apartment_ptr);
+    cgp::vec3 compute_push_direction(const cgp::vec3& pos);
     // Model methods
     //void load_model(const std::string& model_path);
     //void draw(const cgp::environment_generic_structure& environment);

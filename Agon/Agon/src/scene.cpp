@@ -17,6 +17,7 @@ void scene_structure::initialize()
     apartment.initialize();
 
     player.initialise(inputs, window);
+    player.set_apartment(&apartment);
 
     mesh_obj = mesh_load_file_obj("assets/man.obj");
 

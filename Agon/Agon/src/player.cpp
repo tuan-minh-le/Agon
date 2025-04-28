@@ -3,22 +3,23 @@
 Player::Player()
     :movement_speed(0.f), height(0.f), position(0, 0, 0),
     velocity(0, 0, 0), acceleration(15.0f), deceleration(10.0f), max_velocity(6.0f),
-    current_pitch(0.0f), max_pitch_up(85.0f), max_pitch_down(-85.0f), isGrounded(true) {
+    current_pitch(0.0f), max_pitch_up(85.0f), max_pitch_down(-85.0f), isGrounded(true), collision_radius(0.f) {
 }
 
 void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& window) {
     movement_speed = 6.0f;
     height = 1.7f;
     position = cgp::vec3(0, 0, height);
+    collision_radius = 0.5f;
 
     // Initialize smooth movement variables
     velocity = cgp::vec3(0, 0, 0);
     acceleration = 15.0f;    // Accelerate to full speed in ~0.4 seconds
-    deceleration = 10.0f;    // Decelerate to stop in ~0.6 seconds
+    deceleration = 12.0f;    // Decelerate to stop in ~0.6 seconds
     max_velocity = movement_speed;
-
     // Initialize jumping attributes
     gravity = 11.f;
+
     jumpForce = 4.5f;
     isGrounded = true;
 
@@ -125,19 +126,96 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
         verticalVelocity -= gravity * dt; // Apply gravity
     }
 
-    // Update vertical position
+    cgp::vec3 previous_position = position;
+
+    // Update vertical position first (jumping/falling)
     position.z += verticalVelocity * dt;
 
+    // Step 1: Try full movement
+    cgp::vec3 intended_position = position;
+    intended_position.x += velocity.x * dt;
+    intended_position.y += velocity.y * dt;
 
+    // Check if full movement would cause a collision
+    bool has_collision = (apartment != nullptr && apartment->check_collision(intended_position, collision_radius));
 
-    // Apply velocity to position
-    position += velocity * dt;
+    if (!has_collision) {
+        // No collision, apply full movement
+        position = intended_position;
+    }
+    else {
+        // Step 2: Try sliding along walls
+        // Try moving only on X axis
+        cgp::vec3 x_only_position = position;
+        x_only_position.x += velocity.x * dt;
+        bool x_collision = (apartment != nullptr && apartment->check_collision(x_only_position, collision_radius));
 
+        // Try moving only on Y axis
+        cgp::vec3 y_only_position = position;
+        y_only_position.y += velocity.y * dt;
+        bool y_collision = (apartment != nullptr && apartment->check_collision(y_only_position, collision_radius));
 
+        // Apply movement on non-colliding axes
+        if (!x_collision) {
+            position.x = x_only_position.x;
+        }
+
+        if (!y_collision) {
+            position.y = y_only_position.y;
+        }
+
+        // Step 3: If still colliding, implement "push away" behavior
+        if (apartment != nullptr && apartment->check_collision(position, collision_radius)) {
+            // Find nearest wall and compute push-back direction
+            cgp::vec3 push_direction = compute_push_direction(position);
+
+            // Push player away from the wall slightly
+            float push_strength = 0.01f; // Small push to avoid sticking
+            position += push_direction * push_strength;
+        }
+    }
 
     // Update camera position
     camera.camera_model.position_camera = position;
     camera_view_matrix = camera.camera_model.matrix_view();
+}
+
+// Add this helper method to Player class
+cgp::vec3 Player::compute_push_direction(const cgp::vec3& pos) {
+    if (apartment == nullptr) return cgp::vec3(0, 0, 0);
+
+    cgp::vec3 closest_point(0, 0, 0);
+    float min_distance = 1000.0f;
+
+    // For each wall, find the closest one
+    for (size_t i = 0; i < apartment->wall_positions.size(); ++i) {
+        const cgp::vec3& wall_pos = apartment->wall_positions[i];
+        const cgp::vec3& wall_dim = apartment->wall_dimensions[i];
+
+        // Calculate minimum and maximum points of wall
+        cgp::vec3 wall_min = wall_pos - wall_dim * 0.5f;
+        cgp::vec3 wall_max = wall_pos + wall_dim * 0.5f;
+
+        // Calculate closest point on wall to position
+        cgp::vec3 point;
+        point.x = std::max(wall_min.x, std::min(pos.x, wall_max.x));
+        point.y = std::max(wall_min.y, std::min(pos.y, wall_max.y));
+        point.z = std::max(wall_min.z, std::min(pos.z, wall_max.z));
+
+        float distance = cgp::norm(pos - point);
+        if (distance < min_distance) {
+            min_distance = distance;
+            closest_point = point;
+        }
+    }
+
+    // Compute push direction away from closest wall point
+    cgp::vec3 direction = pos - closest_point;
+    if (cgp::norm(direction) < 0.001f) {
+        // If too close, use a default direction (up)
+        return cgp::vec3(0, 0, 1);
+    }
+    return cgp::normalize(direction);
 }
 
 void Player::handle_mouse_move(cgp::vec2 const& mouse_position_current, cgp::vec2 const& mouse_position_previous, cgp::mat4& camera_view_matrix) {
@@ -179,6 +257,11 @@ void Player::handle_mouse_move(cgp::vec2 const& mouse_position_current, cgp::vec
         // Update the camera view matrix
         camera_view_matrix = camera.camera_model.matrix_view();
     }
+}
+
+void Player::set_apartment(Apartment* apartment_ptr)
+{
+    apartment = apartment_ptr;
 }
 
 //void Player::load_model(const std::string& model_path)
