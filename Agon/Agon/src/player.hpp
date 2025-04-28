@@ -21,6 +21,12 @@ private:
     float max_pitch_up;         // Maximum upward angle (positive)
     float max_pitch_down;       // Maximum downward angle (negative)
 
+    // Jump mechanic
+    float verticalVelocity;
+    float gravity;
+    float jumpForce;
+    bool isGrounded;
+
 public:
     // Public interface and camera controller
     Player();

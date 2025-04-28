@@ -3,7 +3,7 @@
 Player::Player()
     :movement_speed(0.f), height(0.f), position(0, 0, 0),
     velocity(0, 0, 0), acceleration(15.0f), deceleration(10.0f), max_velocity(6.0f),
-    current_pitch(0.0f), max_pitch_up(85.0f), max_pitch_down(-85.0f) {
+    current_pitch(0.0f), max_pitch_up(85.0f), max_pitch_down(-85.0f), isGrounded(true) {
 }
 
 void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& window) {
@@ -16,6 +16,11 @@ void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& windo
     acceleration = 15.0f;    // Accelerate to full speed in ~0.4 seconds
     deceleration = 10.0f;    // Decelerate to stop in ~0.6 seconds
     max_velocity = movement_speed;
+
+    // Initialize jumping attributes
+    gravity = 11.f;
+    jumpForce = 4.5f;
+    isGrounded = true;
 
     // Initialize camera rotation limits
     current_pitch = 0.0f;
@@ -41,6 +46,7 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
 
     forward.z = 0;
     right.z = 0;
+
 
     // Normalize directions
     if (cgp::norm(forward) > 0.01f) forward = cgp::normalize(forward);
@@ -96,11 +102,35 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
         }
     }
 
+
+    // Check if the player is grounded
+    if (position.z <= height) {
+        position.z = height;  // Reset to ground level
+        isGrounded = true;    // Player is now grounded
+        verticalVelocity = 0.0f; // Reset vertical velocity
+    }
+
+    // Jumping and Gravity Logic
+    if (isGrounded) {
+        verticalVelocity = 0.0f; // Reset vertical velocity when grounded
+        if (keyboard.is_pressed(GLFW_KEY_SPACE)) {
+            verticalVelocity = jumpForce; // Apply jump force
+            isGrounded = false;          // Player is now mid-air
+        }
+    }
+    else {
+        verticalVelocity -= gravity * dt; // Apply gravity
+    }
+
+    // Update vertical position
+    position.z += verticalVelocity * dt;
+
+
+
     // Apply velocity to position
     position += velocity * dt;
 
-    // Maintain height
-    position.z = height;
+
 
     // Update camera position
     camera.camera_model.position_camera = position;
