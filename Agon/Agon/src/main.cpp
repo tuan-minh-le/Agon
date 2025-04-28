@@ -131,6 +131,7 @@ void animation_loop()
 	// Handle camera behavior in standard frame
 	scene.idle_frame();
 
+
 	// Call the display of the scene
 	scene.display_frame();
 

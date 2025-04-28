@@ -9,6 +9,8 @@ using cgp::mesh_drawable;
 struct gui_parameters {
     bool display_frame = true;
     bool display_wireframe = false;
+    float x_rotation = 0;
+    float y_rotation = 0;
 };
 
 
@@ -27,6 +29,15 @@ struct scene_structure : cgp::scene_inputs_generic {
     // Player for FPS movement
     Player player;
     bool fps_mode;
+
+    // Store previous rotation for model
+    float previous_x_rotation;
+    float previous_y_rotation;
+
+    // OBJ Models
+    cgp::mesh mesh_obj;
+    cgp::mesh_drawable obj_man;
+    
 
     // Core functions
     void initialize();    // Standard initialization to be called before the animation loop
