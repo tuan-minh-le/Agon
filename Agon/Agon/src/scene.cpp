@@ -10,8 +10,13 @@ void scene_structure::initialize()
     camera_control.set_rotation_axis_z();
     camera_control.look_at({ 3.0f, 2.0f, 2.0f }, { 0,0,0 }, { 0,0,1 });
     global_frame.initialize_data_on_gpu(mesh_primitive_frame());
-    player.initialise(inputs, window);
+
+
     fps_mode = true;
+
+    apartment.initialize();
+
+    player.initialise(inputs, window);
 
     mesh_obj = mesh_load_file_obj("assets/man.obj");
 
@@ -62,6 +67,8 @@ void scene_structure::display_frame()
 
     // Set the light to the current position of the camera
     environment.light = camera_control.camera_model.position();
+
+    apartment.draw(environment);
 
     // Draw the frame if enabled
     if (gui.display_frame)

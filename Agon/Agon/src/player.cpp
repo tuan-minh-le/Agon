@@ -103,6 +103,10 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
     }
 
 
+
+
+    // Jumping and Gravity Logic
+
     // Check if the player is grounded
     if (position.z <= height) {
         position.z = height;  // Reset to ground level
@@ -110,7 +114,6 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
         verticalVelocity = 0.0f; // Reset vertical velocity
     }
 
-    // Jumping and Gravity Logic
     if (isGrounded) {
         verticalVelocity = 0.0f; // Reset vertical velocity when grounded
         if (keyboard.is_pressed(GLFW_KEY_SPACE)) {
@@ -177,3 +180,12 @@ void Player::handle_mouse_move(cgp::vec2 const& mouse_position_current, cgp::vec
         camera_view_matrix = camera.camera_model.matrix_view();
     }
 }
+
+//void Player::load_model(const std::string& model_path)
+//{
+//    cgp::mesh model_mesh = cgp::mesh_load_file_obj("assets/player.obj");
+//}
+//
+//void Player::draw(const cgp::environment_generic_structure& environment)
+//{
+//}

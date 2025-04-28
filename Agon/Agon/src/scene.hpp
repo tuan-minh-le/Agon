@@ -3,6 +3,10 @@
 #include "cgp/cgp.hpp"
 #include "environment.hpp"
 #include "player.hpp"
+#include "apartment.hpp"
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 using cgp::mesh_drawable;
 
@@ -29,6 +33,9 @@ struct scene_structure : cgp::scene_inputs_generic {
     // Player for FPS movement
     Player player;
     bool fps_mode;
+
+    // Apartment
+    Apartment apartment;
 
     // Store previous rotation for model
     float previous_x_rotation;

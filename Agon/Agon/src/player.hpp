@@ -1,5 +1,6 @@
 #pragma once
 #ifndef PLAYER_HPP
+#define PLAYER_HPP
 
 #include "cgp/cgp.hpp"
 
@@ -27,15 +28,23 @@ private:
     float jumpForce;
     bool isGrounded;
 
+    // Model
+    cgp::mesh_drawable player_model;
+
 public:
-    // Public interface and camera controller
+    // Default constructor
     Player();
+
+    //Camera
     cgp::camera_controller_first_person_euler camera;
 
-    // Public methods
     void initialise(cgp::input_devices& inputs, cgp::window_structure& window);
     void update(float dt, const cgp::inputs_keyboard_parameters& keyboard, cgp::mat4& camera_view_matrix);
     void handle_mouse_move(cgp::vec2 const& mouse_position_current, cgp::vec2 const& mouse_position_previous, cgp::mat4& camera_view_matrix);
+
+    // Model methods
+    //void load_model(const std::string& model_path);
+    //void draw(const cgp::environment_generic_structure& environment);
 };
 
 #endif // !1
