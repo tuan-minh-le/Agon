@@ -7,6 +7,7 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <string>
 
 using cgp::mesh_drawable;
 
@@ -16,7 +17,6 @@ struct gui_parameters {
     float x_rotation = 0;
     float y_rotation = 0;
 };
-
 
 // The structure of the custom scene
 struct scene_structure : cgp::scene_inputs_generic {
@@ -50,6 +50,7 @@ struct scene_structure : cgp::scene_inputs_generic {
     void initialize();    // Standard initialization to be called before the animation loop
     void display_frame(); // The frame display to be called within the animation loop
     void display_gui();   // The display of the GUI, also called within the animation loop
+    void display_weapon_info();
     void mouse_move_event();
     void mouse_click_event();
     void keyboard_event();

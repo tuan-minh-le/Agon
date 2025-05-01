@@ -113,20 +113,25 @@ void animation_loop()
 
 	float const time_interval = fps_record.update();
 	if (fps_record.event) {
-		std::string const title = "CGP Display - " + str(fps_record.fps) + " fps";
+		std::string const title = "Agon" + str(fps_record.fps) + " fps";
 		glfwSetWindowTitle(scene.window.glfw_window, title.c_str());
 	}
 
 	imgui_create_frame();
 	ImGui::GetIO().FontGlobalScale = project::gui_scale;
-	ImGui::Begin("GUI", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+
+	ImGui::Begin("General Info", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 	scene.inputs.mouse.on_gui = ImGui::GetIO().WantCaptureMouse;
 	scene.inputs.time_interval = time_interval;
-
-
 	// Display the ImGUI interface (button, sliders, etc)
 	display_gui_default();
 	scene.display_gui();
+	// End of ImGui display and handle GLFW events
+	ImGui::End();
+
+	ImGui::Begin("Weapon Info", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+	scene.display_weapon_info();
+	ImGui::End();
 
 	// Handle camera behavior in standard frame
 	scene.idle_frame();
@@ -136,8 +141,7 @@ void animation_loop()
 	scene.display_frame();
 
 
-	// End of ImGui display and handle GLFW events
-	ImGui::End();
+
 	imgui_render_frame(scene.window.glfw_window);
 	glfwSwapBuffers(scene.window.glfw_window);
 	glfwPollEvents();

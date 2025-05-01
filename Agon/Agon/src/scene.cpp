@@ -90,6 +90,32 @@ void scene_structure::display_gui()
 	ImGui::Checkbox("Wireframe", &gui.display_wireframe);
     ImGui::SliderFloat("X rotation", &gui.x_rotation, 0, 90.0f);
     ImGui::SliderFloat("Y rotation", &gui.y_rotation, 0, 90.0f);
+
+    ImGui::Text("x: ");
+    ImGui::SameLine();
+    ImGui::Text("%.2f", player.getPosition().x);
+
+    ImGui::Text("y: ");
+    ImGui::SameLine();
+    ImGui::Text("%.2f", player.getPosition().y);
+
+    ImGui::Text("z: ");
+    ImGui::SameLine();
+    ImGui::Text("%.2f", player.getPosition().z);
+}
+
+void scene_structure::display_weapon_info() {
+    ImGui::Text("Ammo: ");
+    ImGui::SameLine();
+    ImGui::Text("%d", player.getWeapon().getBulletCount());
+    ImGui::SameLine();
+    ImGui::Text(" / ");
+    ImGui::SameLine();
+    ImGui::Text("%d", player.getWeapon().getTotalAmmo());
+
+    if (player.getWeapon().isReloading()) {
+        ImGui::Text("Reloading...");
+    }
 }
 
 void scene_structure::mouse_move_event()
@@ -141,7 +167,7 @@ void scene_structure::idle_frame() {
         update_timer += inputs.time_interval;
 
         if (update_timer >= 0.016f) { // ~60 fps
-            player.update(update_timer, inputs.keyboard, environment.camera_view);
+            player.update(update_timer, inputs.keyboard, inputs.mouse, environment.camera_view);
             update_timer = 0;
         }
     }

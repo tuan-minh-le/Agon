@@ -10,7 +10,7 @@ void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& windo
     movement_speed = 6.0f;
     height = 1.7f;
     position = cgp::vec3(0, 0, height);
-    collision_radius = 0.5f;
+    collision_radius = 1.2f;
 
     // Initialize smooth movement variables
     velocity = cgp::vec3(0, 0, 0);
@@ -34,9 +34,11 @@ void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& windo
 
     // Enable cursor trapping for no-click rotation
     camera.is_cursor_trapped = true;
+
+    weapon.initialize();
 }
 
-void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, cgp::mat4& camera_view_matrix) {
+void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, const cgp::inputs_mouse_parameters& mouse, cgp::mat4& camera_view_matrix) {
     static cgp::vec3 forward;
     static cgp::vec3 right;
     static cgp::vec3 desired_direction(0, 0, 0);
@@ -48,6 +50,13 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
     forward.z = 0;
     right.z = 0;
 
+    if (mouse.click.left) {
+        weapon.shoot();
+    }
+
+    if (keyboard.is_pressed(GLFW_KEY_R)) {
+        weapon.reload();
+    }
 
     // Normalize directions
     if (cgp::norm(forward) > 0.01f) forward = cgp::normalize(forward);
@@ -175,12 +184,15 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
         }
     }
 
+    weapon.update(dt);
+
     // Update camera position
     camera.camera_model.position_camera = position;
     camera_view_matrix = camera.camera_model.matrix_view();
 }
 
-// Add this helper method to Player class
+
+
 cgp::vec3 Player::compute_push_direction(const cgp::vec3& pos) {
     if (apartment == nullptr) return cgp::vec3(0, 0, 0);
 
@@ -216,6 +228,11 @@ cgp::vec3 Player::compute_push_direction(const cgp::vec3& pos) {
         return cgp::vec3(0, 0, 1);
     }
     return cgp::normalize(direction);
+}
+
+cgp::vec3 Player::getPosition() const
+{
+    return position;
 }
 
 void Player::handle_mouse_move(cgp::vec2 const& mouse_position_current, cgp::vec2 const& mouse_position_previous, cgp::mat4& camera_view_matrix) {
@@ -262,6 +279,10 @@ void Player::handle_mouse_move(cgp::vec2 const& mouse_position_current, cgp::vec
 void Player::set_apartment(Apartment* apartment_ptr)
 {
     apartment = apartment_ptr;
+}
+
+const Weapon& Player::getWeapon(){
+    return weapon;
 }
 
 //void Player::load_model(const std::string& model_path)
