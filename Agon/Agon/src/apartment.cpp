@@ -128,9 +128,6 @@ void Apartment::create_walls()
 
         mesh_drawable wall;
         wall.initialize_data_on_gpu(wall_mesh, mesh_drawable::default_shader, wall_texture);
-        wall.material.phong.ambient = 0.5f;
-        wall.material.phong.diffuse = 0.7f;
-        wall.material.phong.specular = 0.1f;
         walls.push_back(wall);
 
         // Store wall collision data - centered at middle of wall
@@ -150,9 +147,6 @@ void Apartment::create_walls()
 
         mesh_drawable wall;
         wall.initialize_data_on_gpu(wall_mesh, mesh_drawable::default_shader, wall_texture);
-        wall.material.phong.ambient = 0.5f;
-        wall.material.phong.diffuse = 0.7f;
-        wall.material.phong.specular = 0.1f;
         walls.push_back(wall);
 
         wall_positions.push_back({ 0, front_edge, room_height / 2 });
