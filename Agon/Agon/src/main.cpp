@@ -2,10 +2,6 @@
 
 #include "cgp/cgp.hpp" // Give access to the complete CGP library
 #include "environment.hpp" // The general scene environment + project variable
-#include <iostream> 
-
-#include <chrono>
-#include <thread>
 
 // Custom scene of this code
 #include "scene.hpp"
