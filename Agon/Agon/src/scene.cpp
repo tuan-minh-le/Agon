@@ -115,6 +115,8 @@ void scene_structure::display_weapon_info() {
 
     if (player.getWeapon().isReloading()) {
         ImGui::Text("Reloading...");
+        ImGui::SameLine();
+        ImGui::Text("(%.1f s)", player.getWeapon().getReloadProgress());
     }
 }
 

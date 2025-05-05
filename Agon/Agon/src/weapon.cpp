@@ -124,14 +124,14 @@ bool Weapon::isReloading() const {
 
 float Weapon::getReloadProgress() const {
     if (!reloading)
-        return 1.0f; // Not reloading means 100% loaded
+        return 0.f; 
 
     auto currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now().time_since_epoch()
     ).count();
 
     float elapsed = (currentTime - reloadStartTime) / 1000.0f;
-    return elapsed / reloadTime; // Return progress as a percentage (0.0 to 1.0)
+    return reloadTime - elapsed;
 }
 
 void Weapon::addAmmo(int amount) {
