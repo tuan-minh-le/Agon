@@ -32,12 +32,12 @@ int main(int, char* argv[])
 {
 	std::cout << "Run " << argv[0] << std::endl;
 
-	
+
 
 	// ************************ //
 	//     INITIALISATION
 	// ************************ //
-	
+
 	// Standard Initialization of an OpenGL ready window
 	scene.window = standard_window_initialization();
 
@@ -109,33 +109,35 @@ void animation_loop()
 
 	float const time_interval = fps_record.update();
 	if (fps_record.event) {
-		std::string const title = "Agon" + str(fps_record.fps) + " fps";
+		std::string const title = "Agon";
 		glfwSetWindowTitle(scene.window.glfw_window, title.c_str());
 	}
 
 	imgui_create_frame();
 	ImGui::GetIO().FontGlobalScale = project::gui_scale;
 
-	ImGui::Begin("General Info", NULL, ImGuiWindowFlags_AlwaysAutoResize);
 	scene.inputs.mouse.on_gui = ImGui::GetIO().WantCaptureMouse;
-	scene.inputs.time_interval = time_interval;
-	// Display the ImGUI interface (button, sliders, etc)
-	display_gui_default();
-	scene.display_gui();
-	// End of ImGui display and handle GLFW events
-	ImGui::End();
+    scene.inputs.time_interval = time_interval;
 
-	ImGui::Begin("Weapon Info", NULL, ImGuiWindowFlags_AlwaysAutoResize);
-	scene.display_weapon_info();
-	ImGui::End();
+    // Only show game UI in main game state
+    if (scene.current_state == GameState::MAIN_GAME) {
+        // Main game UI
+        ImGui::Begin("General Info", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+        display_gui_default();
+        scene.display_gui();
+        ImGui::End();
 
-	// Handle camera behavior in standard frame
-	scene.idle_frame();
+        ImGui::Begin("Weapon Info", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+        scene.display_weapon_info();
+        ImGui::End();
+        
+        // Handle camera behavior in main game mode
+        scene.idle_frame();
+    }
 
 
 	// Call the display of the scene
 	scene.display_frame();
-
 
 
 	imgui_render_frame(scene.window.glfw_window);
@@ -214,7 +216,7 @@ window_structure standard_window_initialization()
 	// Set the callback functions for the inputs
 	glfwSetMouseButtonCallback(window.glfw_window, mouse_click_callback); // Event called when a button of the mouse is clicked/released
 	glfwSetCursorPosCallback(window.glfw_window, mouse_move_callback);    // Event called when the mouse is moved
-	glfwSetWindowSizeCallback(window.glfw_window, window_size_callback);  // Event called when the window is rescaled        
+	glfwSetWindowSizeCallback(window.glfw_window, window_size_callback);  // Event called when the window is rescaled
 	glfwSetKeyCallback(window.glfw_window, keyboard_callback);            // Event called when a keyboard touch is pressed/released
 	glfwSetScrollCallback(window.glfw_window, mouse_scroll_callback);     // Event called when scrolling the mouse
 
@@ -243,7 +245,7 @@ void mouse_move_callback(GLFWwindow* /*window*/, double xpos, double ypos)
 void mouse_click_callback(GLFWwindow* window, int button, int action, int mods)
 {
 	ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
-	
+
 	scene.inputs.mouse.click.update_from_glfw_click(button, action);
 	scene.mouse_click_event();
 }
@@ -262,7 +264,7 @@ void keyboard_callback(GLFWwindow* window, int key, int scancode, int action, in
 {
 	ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
 	bool imgui_capture_keyboard = ImGui::GetIO().WantCaptureKeyboard;
-	
+
 	if(!imgui_capture_keyboard){
 		scene.inputs.keyboard.update_from_glfw_key(key, action);
 		scene.keyboard_event();
@@ -303,7 +305,7 @@ void display_gui_default()
 		ImGui::Indent();
 #ifndef __EMSCRIPTEN__
 		bool changed_screen_mode = ImGui::Checkbox("Full Screen", &scene.window.is_full_screen);
-		if(changed_screen_mode){	
+		if(changed_screen_mode){
 			if (scene.window.is_full_screen)
 				scene.window.set_full_screen();
 			else
@@ -314,7 +316,7 @@ void display_gui_default()
 
 #ifndef __EMSCRIPTEN__
 		// Arbitrary limits the refresh rate to a maximal frame per seconds.
-		//  This limits the risk of having different behaviors when you use different machine. 
+		//  This limits the risk of having different behaviors when you use different machine.
 		ImGui::Checkbox("FPS limiting",&project::fps_limiting);
 		if(project::fps_limiting){
 			ImGui::SliderFloat("FPS limit",&project::fps_max, 10, 250);
@@ -324,7 +326,7 @@ void display_gui_default()
 		//   vsync may or may not be enforced by your GPU driver and OS (on top of the GLFW request).
 		//   de-activating vsync may generate arbitrary large FPS depending on your GPU and scene.
 		if(ImGui::Checkbox("vsync (screen sync)",&project::vsync)){
-			project::vsync==true? glfwSwapInterval(1) : glfwSwapInterval(0); 
+			project::vsync==true? glfwSwapInterval(1) : glfwSwapInterval(0);
 		}
 
 		std::string window_size = "Window "+str(scene.window.width)+"px x "+str(scene.window.height)+"px";

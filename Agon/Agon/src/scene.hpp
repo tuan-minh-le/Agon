@@ -4,6 +4,7 @@
 #include "environment.hpp"
 #include "player.hpp"
 #include "apartment.hpp"
+#include "login/login_ui.hpp"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -11,12 +12,20 @@
 
 using cgp::mesh_drawable;
 
+enum class GameState{
+    LOGIN,
+    MAIN_GAME
+};
+
+
 struct gui_parameters {
     bool display_frame = true;
     bool display_wireframe = false;
     float x_rotation = 0;
     float y_rotation = 0;
 };
+
+
 
 // The structure of the custom scene
 struct scene_structure : cgp::scene_inputs_generic {
@@ -33,6 +42,10 @@ struct scene_structure : cgp::scene_inputs_generic {
     // Player for FPS movement
     Player player;
     bool fps_mode;
+
+    // Add login state and UI
+    GameState current_state = GameState::LOGIN;
+    LoginUI login_ui;
 
     // Apartment
     Apartment apartment;

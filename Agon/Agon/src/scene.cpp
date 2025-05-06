@@ -6,6 +6,10 @@ using namespace cgp;
 
 void scene_structure::initialize()
 {
+
+    current_state = GameState::LOGIN;
+    login_ui.initialize();
+
     camera_control.initialize(inputs, window); // Give access to the inputs and window global state to the camera controler
     camera_control.set_rotation_axis_z();
     camera_control.look_at({ 3.0f, 2.0f, 2.0f }, { 0,0,0 }, { 0,0,1 });
@@ -34,54 +38,62 @@ void scene_structure::initialize()
 
 void scene_structure::display_frame()
 {
-    // Only recreate model data when needed
-    static bool model_needs_update = false;
+    if(current_state == GameState::LOGIN){
+        login_ui.render();
 
-    if (gui.x_rotation != previous_x_rotation) {
-        mesh_obj.rotate({ 1, 0, 0 }, gui.x_rotation - previous_x_rotation);
-        previous_x_rotation = gui.x_rotation;
-        model_needs_update = true;
+        if(login_ui.is_login_button_clicked()){
+            current_state = GameState::MAIN_GAME;
+            login_ui.reset_login_clicked();
+        }
     }
+    else{        // Only recreate model data when needed
+        static bool model_needs_update = false;
 
-    if (gui.y_rotation != previous_y_rotation) {
-        mesh_obj.rotate({ 0, 1, 0 }, gui.y_rotation - previous_y_rotation);
-        previous_y_rotation = gui.y_rotation;
-        model_needs_update = true;
-    }
+        if (gui.x_rotation != previous_x_rotation) {
+            mesh_obj.rotate({ 1, 0, 0 }, gui.x_rotation - previous_x_rotation);
+            previous_x_rotation = gui.x_rotation;
+            model_needs_update = true;
+        }
 
-    // Only update GPU data when needed
-    if (model_needs_update) {
-        obj_man.initialize_data_on_gpu(mesh_obj);
-        model_needs_update = false;
-    }
+        if (gui.y_rotation != previous_y_rotation) {
+            mesh_obj.rotate({ 0, 1, 0 }, gui.y_rotation - previous_y_rotation);
+            previous_y_rotation = gui.y_rotation;
+            model_needs_update = true;
+        }
+
+        // Only update GPU data when needed
+        if (model_needs_update) {
+            obj_man.initialize_data_on_gpu(mesh_obj);
+            model_needs_update = false;
+        }
 
 
-    // Update the camera view based on the current mode
-    if (fps_mode) {
-        // Use player's camera view
-        environment.camera_view = player.camera.camera_model.matrix_view();
-    }
-    else {
-        // Use orbit camera view
-        environment.camera_view = camera_control.camera_model.matrix_view();
-    }
+        // Update the camera view based on the current mode
+        if (fps_mode) {
+            // Use player's camera view
+            environment.camera_view = player.camera.camera_model.matrix_view();
+        }
+        else {
+            // Use orbit camera view
+            environment.camera_view = camera_control.camera_model.matrix_view();
+        }
 
-    // Set the light to the current position of the camera
-    environment.light = camera_control.camera_model.position();
+        // Set the light to the current position of the camera
+        environment.light = camera_control.camera_model.position();
 
-    apartment.draw(environment);
+        apartment.draw(environment);
 
-    // Draw the frame if enabled
-    if (gui.display_frame)
-        draw(global_frame, environment);
+        // Draw the frame if enabled
+        if (gui.display_frame)
+            draw(global_frame, environment);
 
-    // Draw other scene elements here
-    if (gui.display_wireframe) {
-        draw_wireframe(obj_man, environment);
-    }
-    else {
-        draw(obj_man, environment);
-    }
+        // Draw other scene elements here
+        if (gui.display_wireframe) {
+            draw_wireframe(obj_man, environment);
+        }
+        else {
+            draw(obj_man, environment);
+        }}
 }
 
 void scene_structure::display_gui()

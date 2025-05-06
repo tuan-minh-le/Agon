@@ -39,6 +39,9 @@ project(${executable_name})
 # Add current src/ directory
 include_directories("src")
 
+include_directories(extern/nlohmann_json/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/extern)
+
 # Add the lib directory
 include_directories(${ABS_PATH_TO_CGP})
 
