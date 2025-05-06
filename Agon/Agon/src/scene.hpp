@@ -43,6 +43,8 @@ struct scene_structure : cgp::scene_inputs_generic {
     Player player;
     bool fps_mode;
 
+    std::string username;
+
     // Add login state and UI
     GameState current_state = GameState::LOGIN;
     LoginUI login_ui;

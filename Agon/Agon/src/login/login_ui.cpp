@@ -47,28 +47,53 @@ void LoginUI::render() {
     }
     
     // Login button
-    if (ImGui::Button("Login", ImVec2(ImGui::GetWindowWidth() - 20, 30))) {
-        std::string email = get_email();
-        std::string password = get_password();
+// Login button
+if (ImGui::Button("Login", ImVec2(ImGui::GetWindowWidth() - 20, 30))) {
+    std::string email = get_email();
+    std::string password = get_password();
+    
+    if (email.empty() || password.empty()) {
+        set_error_message("Email and password cannot be empty");
+    } else {
+        // Show loading indicator
+        set_error_message("Logging in...");
         
-        if (email.empty() || password.empty()) {
-            set_error_message("Username and password cannot be empty");
-        } else {
-            // Show loading indicator or disable button
-            
-            // Call API service
-            APIService::getInstance().login(email, password, rememberMe, 
-                [this](bool success, const std::string& message, const std::string& token) {
-                    if (success) {
-                        login_button_clicked = true;
-                        clear_error_message();
-                    } else {
-                        set_error_message(message);
-                    }
+        // Call API service
+        APIService::getInstance().login(email, password, rememberMe, 
+            [this](bool success, const std::string& message, const std::string& token) {
+                if (success) {
+                    // Clear the login message
+                    clear_error_message();
+                    
+                    // Now get the user info
+                    APIService::getInstance().getUserInfo(
+                        [this](bool success, const std::string& userData) {
+                            if (success) {
+                                try {
+                                    // Parse the user data
+                                    auto json_data = nlohmann::json::parse(userData);
+                                    username = json_data["username"];
+                                    
+                                    // Set the login button clicked flag
+                                    login_button_clicked = true;
+                                    
+                                    std::cout << "Username retrieved: " << username << std::endl;
+                                } catch (const std::exception& e) {
+                                    set_error_message("Error parsing user data");
+                                    std::cout << "Error: " << e.what() << std::endl;
+                                }
+                            } else {
+                                set_error_message("Failed to get user info: " + userData);
+                            }
+                        }
+                    );
+                } else {
+                    set_error_message(message);
                 }
-            );
-        }
+            }
+        );
     }
+}
 
     
     
@@ -85,6 +110,10 @@ std::string LoginUI::get_email() const {
 
 std::string LoginUI::get_password() const {
     return std::string(password_buffer);
+}
+
+std::string LoginUI::get_username() const{
+    return username;
 }
 
 void LoginUI::set_error_message(const std::string& message) {

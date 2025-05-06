@@ -14,6 +14,7 @@ public:
     bool is_login_button_clicked() const;
     std::string get_email() const;
     std::string get_password() const;
+    std::string get_username() const;
     void set_error_message(const std::string& message);
     void clear_error_message();
 
@@ -22,6 +23,7 @@ public:
 private:
     char email_buffer[128] = "";
     char password_buffer[128] = "";
+    std::string username;
     bool rememberMe;
     bool login_button_clicked;
     std::string error_message;

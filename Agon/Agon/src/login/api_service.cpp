@@ -27,6 +27,86 @@ bool APIService::checkServerConnection() const{
     }
 }
 
+bool APIService::getUserInfo(std::function<void(bool success, const std::string& userData)> callback){
+    std::thread([=](){
+        try{
+            for(int attempt = 0; attempt < MAX_RETRIES; attempt++){
+                if(attempt > 0){
+                    std::cout << "Retry attempt " << attempt << " of " << MAX_RETRIES << std::endl;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(RETRY_DELAY_MS));
+                }
+                
+                httplib::Client client(base_url);
+                client.set_connection_timeout(10);
+                client.set_read_timeout(10);
+
+                std::cout << "Getting user info from: " << base_url << "api/auth/me" << std::endl;
+
+                httplib::Headers headers = {
+                     {"Authorization", "Bearer " + auth_token},
+                     {"Content-Type", "application/json"}
+                };
+
+                auto res = client.Get("/api/auth/me", headers);
+
+                if(res){
+                    std::cout << "Response received: Status - " << res->status << std::endl;
+
+                    if(res->status >= 200 && res->status < 300){
+                        std::cout << "User data received: " << res->body << std::endl;
+                        try {
+                            json response = json::parse(res->body);
+                            username = response["username"];
+                            callback(true, res->body);
+                        } catch(const std::exception& e) {
+                            std::cout << "Error parsing user data: " << e.what() << std::endl;
+                            callback(false, "Error parsing response");
+                        }
+                        return;
+                    }
+                    else if(res->status >= 500 && attempt < MAX_RETRIES - 1){
+                        std::cout << "Server error: " << res->status << "; retrying..." << std::endl;
+                        continue;
+                    }
+                    else{
+                        std::string message = "Server error: " + std::to_string(res->status);
+                        try{
+                            json response = json::parse(res->body);
+                            if(response.contains("message")){
+                                message = response["message"];
+                            }
+                            std::cout << "Failed to parse error response" << std::endl;
+                        }
+                        catch(...){
+                            std::cout << "Failed to parse error response" << std::endl;
+                        }
+                        callback(false, message);
+                        return;
+                    }
+                }
+                else{
+                    auto err = res.error();
+                    std::cout << "Connection error: " << httplib::to_string(err) << std::endl;
+
+                    if(attempt < MAX_RETRIES - 1){
+                        if (err == httplib::Error::Connection || 
+                            err == httplib::Error::Read || 
+                            err == httplib::Error::Write) {
+                            continue;
+                    }
+                }
+                callback(false, "Connection failed: " + httplib::to_string(err));
+                return;
+            }
+        }
+        callback(false, "Failed to get user info after" + std::to_string(MAX_RETRIES) + " attempts");
+        }catch(const std::exception& e){
+            std::cout << "Exception getting user info: " << e.what() << std::endl;
+            callback(false, std::string("Exception: ") + e.what());
+        }
+    }).detach();
+}
+
 bool APIService::login(const std::string& email, const std::string& password, bool rememberMe,
                        std::function<void(bool success, const std::string& message, const std::string& token)> callback) {
     // Create a new thread to avoid blocking the UI

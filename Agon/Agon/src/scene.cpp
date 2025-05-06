@@ -44,6 +44,7 @@ void scene_structure::display_frame()
         if(login_ui.is_login_button_clicked()){
             current_state = GameState::MAIN_GAME;
             login_ui.reset_login_clicked();
+            username = login_ui.get_username();
         }
     }
     else{        // Only recreate model data when needed
@@ -114,6 +115,10 @@ void scene_structure::display_gui()
     ImGui::Text("z: ");
     ImGui::SameLine();
     ImGui::Text("%.2f", player.getPosition().z);
+
+    ImGui::Text("Username: ");
+    ImGui::SameLine();
+    ImGui::Text("%s",username.c_str());
 }
 
 void scene_structure::display_weapon_info() {

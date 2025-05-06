@@ -19,6 +19,8 @@ enum class LoginStatus {
 class APIService {
 public:
     static APIService& getInstance();
+
+    std::string username;
     
     bool login(const std::string& email, const std::string& password, bool rememberMe, 
               std::function<void(bool success, const std::string& message, const std::string& token)> callback);
