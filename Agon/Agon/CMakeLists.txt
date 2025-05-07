@@ -38,6 +38,20 @@ project(${executable_name})
 
 # Add current src/ directory
 include_directories("src")
+include_directories("extern")
+
+# WebSocketPP Configuration
+set(WEBSOCKETPP_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/extern/websocketcpp")
+include_directories(${WEBSOCKETPP_ROOT})
+
+# Boost is required for WebSocketPP
+find_package(Boost REQUIRED COMPONENTS system)
+include_directories(${Boost_INCLUDE_DIRS})
+link_directories(${Boost_LIBRARY_DIRS})
+
+# OpenSSL is required for secure WebSockets
+find_package(OpenSSL REQUIRED)
+include_directories(${OPENSSL_INCLUDE_DIR})
 
 include_directories(extern/nlohmann_json/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/extern)

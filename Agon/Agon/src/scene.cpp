@@ -39,14 +39,21 @@ void scene_structure::initialize()
 void scene_structure::display_frame()
 {
     if(current_state == GameState::LOGIN){
-        login_ui.render();
+        login_ui.render(environment);
 
         if(login_ui.is_login_button_clicked()){
+            std::string auth_token = APIService::getInstance().getAuthToken();
+            std::cout << auth_token << std::endl;
+            WebSocketService::getInstance().connect("ws://10.42.234.85:4500/ws", auth_token, login_ui.get_roomid());
+        }
+
+        if(WebSocketService::getInstance().isConnected() || login_ui.get_email() == "admin"){
             current_state = GameState::MAIN_GAME;
             login_ui.reset_login_clicked();
             username = login_ui.get_username();
         }
     }
+    
     else{        // Only recreate model data when needed
         static bool model_needs_update = false;
 
@@ -135,6 +142,10 @@ void scene_structure::display_weapon_info() {
         ImGui::SameLine();
         ImGui::Text("(%.1f s)", player.getWeapon().getReloadProgress());
     }
+}
+
+void scene_structure::display_chat(){
+    ImGui::Text("Temporary ");
 }
 
 void scene_structure::mouse_move_event()

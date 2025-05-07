@@ -5,6 +5,7 @@
 #include "player.hpp"
 #include "apartment.hpp"
 #include "login/login_ui.hpp"
+#include "login/websocket_service.hpp"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -14,6 +15,7 @@ using cgp::mesh_drawable;
 
 enum class GameState{
     LOGIN,
+    CONNECTING,
     MAIN_GAME
 };
 
@@ -64,8 +66,12 @@ struct scene_structure : cgp::scene_inputs_generic {
     // Core functions
     void initialize();    // Standard initialization to be called before the animation loop
     void display_frame(); // The frame display to be called within the animation loop
+
+    // UI
     void display_gui();   // The display of the GUI, also called within the animation loop
     void display_weapon_info();
+    void display_chat();
+
     void mouse_move_event();
     void mouse_click_event();
     void keyboard_event();
