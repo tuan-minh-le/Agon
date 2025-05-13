@@ -86,6 +86,7 @@ if (ImGui::Button("Login", ImVec2(ImGui::GetWindowWidth() - 20, 30))) {
     
     if(email == "admin"){
         login_button_clicked = true;
+        username = "ADMIN";
         return;
     }
 
