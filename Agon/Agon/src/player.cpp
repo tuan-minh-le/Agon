@@ -11,8 +11,8 @@ void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& windo
 
     movement_speed = 6.0f;
     height = 1.7f;
-    position = cgp::vec3(0, 0, height);
-    collision_radius = 1.2f;
+    position = cgp::vec3(-20.f, -20.f, height);
+    collision_radius = 0.5f;
 
     // Initialize smooth movement variables
     velocity = cgp::vec3(0, 0, 0);
