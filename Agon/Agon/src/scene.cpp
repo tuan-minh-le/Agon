@@ -15,8 +15,11 @@ void scene_structure::initialize()
     camera_control.look_at({ 3.0f, 2.0f, 2.0f }, { 0,0,0 }, { 0,0,1 });
     global_frame.initialize_data_on_gpu(mesh_primitive_frame());
 
+    showChat = false;
 
     fps_mode = true;
+
+
 
     apartment.initialize();
 
@@ -56,6 +59,7 @@ void scene_structure::display_frame()
     
     else{        // Only recreate model data when needed
         static bool model_needs_update = false;
+        
 
         if (gui.x_rotation != previous_x_rotation) {
             mesh_obj.rotate({ 1, 0, 0 }, gui.x_rotation - previous_x_rotation);
@@ -79,6 +83,7 @@ void scene_structure::display_frame()
         // Update the camera view based on the current mode
         if (fps_mode) {
             // Use player's camera view
+                glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             environment.camera_view = player.camera.camera_model.matrix_view();
         }
         else {
@@ -144,8 +149,29 @@ void scene_structure::display_weapon_info() {
     }
 }
 
+
+
 void scene_structure::display_chat(){
-    ImGui::Text("Temporary ");
+    ImGui::Text("[Temporary Username]: [Temporary Message]");
+    ImGui::Text("Chat: ");
+    ImGui::SameLine();
+    
+    // Set keyboard focus on the input text field
+    ImGui::SetKeyboardFocusHere();
+    
+    // Process input text and handle Enter key for sending
+    if (ImGui::InputText("##Chat", chat_buffer, IM_ARRAYSIZE(chat_buffer), 
+                         ImGuiInputTextFlags_EnterReturnsTrue)) {
+        showChat = false;
+        std::cout << "Message sent: " << chat_buffer << std::endl;
+        
+        // Clear the input field after sending
+        chat_buffer[0] = '\0';
+        
+        // Return focus to the input field for continuous typing
+        ImGui::SetKeyboardFocusHere(-1);
+
+    }
 }
 
 void scene_structure::mouse_move_event()
@@ -171,11 +197,20 @@ void scene_structure::mouse_click_event()
 void scene_structure::keyboard_event()
 {
     if (fps_mode) {
-        // Exit FPS mode with Escape key
+        if (inputs.keyboard.last_action.key == GLFW_KEY_T) {
+
+            std::cout << "T key detected - Switching chat state" << std::endl;
+            showChat = true;
+            chat_buffer[0] = '\0';
+        }
         if (inputs.keyboard.is_pressed(GLFW_KEY_ESCAPE)) {
+            std::cout << "Player camera activated" << std::endl;
             toggle_fps_mode();
         }
-        // Note: Actual player movement is now handled in idle_frame
+
+        
+        // Handle T key for toggling chat
+
     }
     else {
         // Standard orbit camera control
@@ -183,7 +218,7 @@ void scene_structure::keyboard_event()
 
         // Enter FPS mode with F key
         if (inputs.keyboard.is_pressed('`')) {
-            std::cout << "` pressed " << std::endl;
+            std::cout << "Debug Camera activated" << std::endl;
             toggle_fps_mode();
         }
     }

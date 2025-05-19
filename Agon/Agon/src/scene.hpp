@@ -20,6 +20,7 @@ enum class GameState{
 };
 
 
+
 struct gui_parameters {
     bool display_frame = true;
     bool display_wireframe = false;
@@ -50,6 +51,7 @@ struct scene_structure : cgp::scene_inputs_generic {
     // Add login state and UI
     GameState current_state = GameState::LOGIN;
     LoginUI login_ui;
+    bool showChat;
 
     // Apartment
     Apartment apartment;
@@ -79,4 +81,6 @@ struct scene_structure : cgp::scene_inputs_generic {
 
     // FPS mode toggle
     void toggle_fps_mode();
+
+    char chat_buffer[128];
 };

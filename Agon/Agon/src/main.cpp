@@ -119,17 +119,55 @@ void animation_loop()
 	scene.inputs.mouse.on_gui = ImGui::GetIO().WantCaptureMouse;
     scene.inputs.time_interval = time_interval;
 
+
     // Only show game UI in main game state
     if (scene.current_state == GameState::MAIN_GAME) {
-        // Main game UI
-        ImGui::Begin("General Info", NULL, ImGuiWindowFlags_AlwaysAutoResize);
-        display_gui_default();
-        scene.display_gui();
-        ImGui::End();
+		// Main game UI - position at top left
+		ImGui::SetNextWindowPos(
+			ImVec2(10, 10),  // Position at top left
+			ImGuiCond_Always
+		);
+		ImGui::Begin("General Info", NULL, ImGuiWindowFlags_AlwaysAutoResize | 
+				ImGuiWindowFlags_NoMove |           // Prevent user from moving window
+				ImGuiWindowFlags_NoCollapse);
+		display_gui_default();
+		scene.display_gui();
+		ImGui::End();
 
-        ImGui::Begin("Weapon Info", NULL, ImGuiWindowFlags_AlwaysAutoResize);
-        scene.display_weapon_info();
-        ImGui::End();
+		// Weapon info - position at bottom right
+		ImGui::SetNextWindowPos(
+			ImVec2(scene.window.width - 200, scene.window.height - 110),  // Bottom right
+			ImGuiCond_Always
+		);
+		ImGui::Begin("Weapon Info", NULL, ImGuiWindowFlags_AlwaysAutoResize | 
+				ImGuiWindowFlags_NoMove |           // Prevent user from moving window
+				ImGuiWindowFlags_NoCollapse);
+		scene.display_weapon_info();
+		ImGui::End();
+
+
+		if(scene.showChat){
+			// Set window position BEFORE ImGui::Begin
+			ImGui::SetNextWindowPos(
+				ImVec2(10, scene.window.height - 130),  // X=10, Y=window_height-180 (bottom left)
+				ImGuiCond_Always
+			);
+			
+			// Set window size constraints (optional)
+			ImGui::SetNextWindowSizeConstraints(
+				ImVec2(300, 70),    // Minimum size
+				ImVec2(500, 200)     // Maximum size
+			);
+			
+			ImGui::Begin("Chat Window", NULL, 
+				ImGuiWindowFlags_AlwaysAutoResize | 
+				ImGuiWindowFlags_NoMove |           // Prevent user from moving window
+				ImGuiWindowFlags_NoCollapse);       // Prevent collapsing
+			
+			scene.chat_buffer[0] = '\0';
+			scene.display_chat();
+			ImGui::End();
+		}
         
         // Handle camera behavior in main game mode
         scene.idle_frame();
