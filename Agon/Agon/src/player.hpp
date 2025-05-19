@@ -9,6 +9,7 @@
 
 class Player {
 private:
+    int hp;
     // Private member variables
     float movement_speed;
     float height;
@@ -59,6 +60,8 @@ public:
     //void draw(const cgp::environment_generic_structure& environment);
 
     cgp::vec3 getPosition() const;
+
+    int getHP() const {return hp;};
 
 };
 

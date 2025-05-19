@@ -111,10 +111,7 @@ void scene_structure::display_frame()
 
 void scene_structure::display_gui()
 {
-	ImGui::Checkbox("Frame", &gui.display_frame);
-	ImGui::Checkbox("Wireframe", &gui.display_wireframe);
-    ImGui::SliderFloat("X rotation", &gui.x_rotation, 0, 90.0f);
-    ImGui::SliderFloat("Y rotation", &gui.y_rotation, 0, 90.0f);
+    ImGui::Text("HP: %d", player.getHP());
 
     ImGui::Text("x: ");
     ImGui::SameLine();

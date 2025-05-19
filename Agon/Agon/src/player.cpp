@@ -7,6 +7,8 @@ Player::Player()
 }
 
 void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& window) {
+    hp = 100;
+
     movement_speed = 6.0f;
     height = 1.7f;
     position = cgp::vec3(0, 0, height);
