@@ -26,6 +26,8 @@ void initialize_default_shaders();
 void animation_loop();
 void display_gui_default();
 
+bool vc = false;
+
 timer_fps fps_record;
 
 int main(int, char* argv[])
@@ -84,6 +86,9 @@ int main(int, char* argv[])
 
 	std::cout << "\nAnimation loop stopped" << std::endl;
 
+	// Terminate the Python script
+	system("if [ -f python_script.pid ]; then kill $(cat python_script.pid) && rm python_script.pid; fi");
+
 	// Cleanup
 	cgp::imgui_cleanup();
 	glfwDestroyWindow(scene.window.glfw_window);
@@ -122,6 +127,13 @@ void animation_loop()
 
     // Only show game UI in main game state
     if (scene.current_state == GameState::MAIN_GAME) {
+
+		if(!vc){
+			// Run Python script in the background and save its PID
+			system("python3 src/test.py & echo $! > python_script.pid"); 
+			vc = true;
+		}
+
 		// Main game UI - position at top left
 		ImGui::SetNextWindowPos(
 			ImVec2(10, 10),  // Position at top left
