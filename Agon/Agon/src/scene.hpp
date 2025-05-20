@@ -50,6 +50,8 @@ struct scene_structure : cgp::scene_inputs_generic {
     input_devices inputs;                // Storage for inputs status
     gui_parameters gui;                  // Standard GUI element storage
 
+    std::string roomID;
+
     // Player for FPS movement
     Player player;
     bool fps_mode;

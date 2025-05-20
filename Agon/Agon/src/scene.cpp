@@ -181,6 +181,7 @@ void scene_structure::display_frame()
             std::string ws_url = "ws://10.42.235.34:4500/ws";
             if (WebSocketService::getInstance().connect(ws_url, auth_token, login_ui.get_roomid())) {
                 std::cout << "Connected to WebSocket server successfully" << std::endl;
+                roomID = login_ui.get_roomid();
             } else {
                 std::cout << "Failed to connect to WebSocket server" << std::endl;
             }

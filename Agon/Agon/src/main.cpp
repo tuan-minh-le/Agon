@@ -1,5 +1,3 @@
-
-
 #include "cgp/cgp.hpp" // Give access to the complete CGP library
 #include "environment.hpp" // The general scene environment + project variable
 
@@ -129,8 +127,8 @@ void animation_loop()
     if (scene.current_state == GameState::MAIN_GAME) {
 
 		if(!vc){
-			// Run Python script in the background and save its PID
-			system("python3 src/test.py & echo $! > python_script.pid"); 
+			std::string command = "python3 src/test.py " + scene.roomID + " & echo $! > python_script.pid";
+			system(command.c_str()); 
 			vc = true;
 		}
 

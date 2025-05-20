@@ -1,6 +1,7 @@
 import socket
 import pyaudio
 import threading
+import sys
 
 # Configuration audio
 FORMAT = pyaudio.paInt16
@@ -15,14 +16,12 @@ class VoiceChatClient:
 
         self.audio = pyaudio.PyAudio()
 
-        # Stream pour la lecture audio (ce qu'on reçoit)
         self.play_stream = self.audio.open(format=FORMAT,
                                            channels=CHANNELS,
                                            rate=RATE,
                                            output=True,
                                            frames_per_buffer=CHUNK)
 
-        # Stream pour l'enregistrement audio (ce qu'on envoie)
         self.record_stream = self.audio.open(format=FORMAT,
                                              channels=CHANNELS,
                                              rate=RATE,
@@ -52,9 +51,11 @@ class VoiceChatClient:
                 print(f"Erreur réception audio : {e}")
                 break
 
-    def start(self):
+    def start(self, room_id="default"):
         self.client_socket.connect((self.server_ip, self.server_port))
-        print(f"Connecté au serveur vocal {self.server_ip}:{self.server_port}")
+        self.client_socket.sendall(room_id.encode())  # Envoie le room ID
+
+        print(f"Connecté au serveur vocal {self.server_ip}:{self.server_port}, room '{room_id}'")
 
         send_thread = threading.Thread(target=self.send_audio)
         receive_thread = threading.Thread(target=self.receive_audio)
@@ -63,7 +64,7 @@ class VoiceChatClient:
 
         try:
             while True:
-                pass  # Garde le programme en vie
+                pass
         except KeyboardInterrupt:
             print("\nDéconnexion...")
             self.running = False
@@ -75,8 +76,9 @@ class VoiceChatClient:
             self.audio.terminate()
 
 if __name__ == "__main__":
-    ip_serveur = "127.0.0.1"  # change selon ton serveur
-    port_serveur = 12345      # idem
+    room_id = str(sys.argv[1]) if len(sys.argv) > 1 else "default"
+    ip_serveur = "10.42.234.253"
+    port_serveur = 12345
 
     client = VoiceChatClient(ip_serveur, port_serveur)
-    client.start()
+    client.start(room_id)
