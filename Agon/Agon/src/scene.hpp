@@ -10,6 +10,10 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <string>
+#include <vector>
+#include <deque>
+#include <mutex>
+#include <nlohmann/json.hpp>
 
 using cgp::mesh_drawable;
 
@@ -19,7 +23,12 @@ enum class GameState{
     MAIN_GAME
 };
 
-
+// Structure for chat messages
+struct ChatMessage {
+    std::string username;
+    std::string message;
+    float timestamp;  // When the message was received (for potential expiration)
+};
 
 struct gui_parameters {
     bool display_frame = true;
@@ -27,7 +36,6 @@ struct gui_parameters {
     float x_rotation = 0;
     float y_rotation = 0;
 };
-
 
 
 // The structure of the custom scene
@@ -64,10 +72,19 @@ struct scene_structure : cgp::scene_inputs_generic {
     cgp::mesh mesh_obj;
     cgp::mesh_drawable obj_man;
     
+    // WebSocket and chat functionality
+    void setupWebSocketHandlers();
+    void sendChatMessage(const std::string& message);
+    
+    // Chat message storage
+    std::deque<ChatMessage> chat_messages;
+    const size_t MAX_CHAT_MESSAGES = 10;  // Maximum number of messages to display
+    std::mutex chat_mutex;  // For thread safety when adding messages
 
     // Core functions
     void initialize();    // Standard initialization to be called before the animation loop
     void display_frame(); // The frame display to be called within the animation loop
+    void cleanup();       // Clean up resources when the game is closing
 
     // UI
     void display_gui();   // The display of the GUI, also called within the animation loop

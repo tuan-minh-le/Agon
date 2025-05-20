@@ -19,7 +19,8 @@ void scene_structure::initialize()
 
     fps_mode = true;
 
-
+    // Setup WebSocket message handlers
+    setupWebSocketHandlers();
 
     apartment.initialize();
 
@@ -37,7 +38,135 @@ void scene_structure::initialize()
 
 }
 
+void scene_structure::setupWebSocketHandlers() {
+    // Handler for CHAT messages
+    APIService::getInstance().registerWebSocketHandler(
+        WebSocketMessageType::CHAT,
+        [this](const nlohmann::json& msg_json) {
+            try {
+                if (msg_json.contains("content") && msg_json.contains("username")) {
+                    std::string sender = msg_json["username"].get<std::string>();
+                    std::string messageContent = msg_json["content"].get<std::string>();
+                    
+                    ChatMessage new_message;
+                    new_message.username = sender;
+                    new_message.message = messageContent;
+                    new_message.timestamp = static_cast<float>(glfwGetTime());
+                    
+                    {
+                        std::lock_guard<std::mutex> lock(chat_mutex);
+                        chat_messages.push_back(new_message);
+                        while (chat_messages.size() > MAX_CHAT_MESSAGES) {
+                            chat_messages.pop_front();
+                        }
+                    }
+                    // Log that the scene processed it, APIService already logs receipt
+                    std::cout << "Chat message processed by scene: [" << sender << "]: " << messageContent << std::endl;
+                } else {
+                    std::cerr << "Malformed CHAT message received by scene's CHAT handler: " << msg_json.dump() << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Error in scene's CHAT handler: " << e.what() << std::endl;
+            }
+        });
 
+    // Handler for SERVER messages
+    APIService::getInstance().registerWebSocketHandler(
+        WebSocketMessageType::SERVER,
+        [this](const nlohmann::json& msg_json) {
+            try {
+                if (msg_json.contains("content")) {
+                    std::string content = msg_json["content"].get<std::string>();
+                    
+                    ChatMessage new_message;
+                    new_message.username = "System"; // SERVER messages are from "System"
+                    new_message.message = content;
+                    new_message.timestamp = static_cast<float>(glfwGetTime());
+
+                    {
+                        std::lock_guard<std::mutex> lock(chat_mutex);
+                        chat_messages.push_back(new_message);
+                        while (chat_messages.size() > MAX_CHAT_MESSAGES) {
+                            chat_messages.pop_front();
+                        }
+                    }
+                    std::cout << "Server message processed by scene: " << content << std::endl;
+                } else {
+                     std::cerr << "Malformed SERVER message received by scene's SERVER handler: " << msg_json.dump() << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Error in scene's SERVER handler: " << e.what() << std::endl;
+            }
+        });
+    
+    // Handler for ERROR messages
+    APIService::getInstance().registerWebSocketHandler(
+        WebSocketMessageType::ERROR,
+        [this](const nlohmann::json& msg_json) {
+            try {
+                std::string error_content = "Unknown error";
+                if (msg_json.contains("message")) {
+                    error_content = msg_json["message"].get<std::string>();
+                } else if (msg_json.contains("content")) {
+                     error_content = msg_json["content"].get<std::string>();
+                } else {
+                    error_content = msg_json.dump(); // Fallback
+                }
+                
+                ChatMessage new_message;
+                new_message.username = "Error"; // Special username for errors
+                new_message.message = error_content;
+                new_message.timestamp = static_cast<float>(glfwGetTime());
+
+                {
+                    std::lock_guard<std::mutex> lock(chat_mutex);
+                    chat_messages.push_back(new_message);
+                    while (chat_messages.size() > MAX_CHAT_MESSAGES) {
+                        chat_messages.pop_front();
+                    }
+                }
+                std::cerr << "Error message processed by scene and added to chat: " << error_content << std::endl;
+
+            } catch (const std::exception& e) {
+                std::cerr << "Error in scene's ERROR handler: " << e.what() << std::endl;
+            }
+        });
+    
+    // You can also register a handler for WebSocketMessageType::UPDATE if needed
+    // APIService::getInstance().registerWebSocketHandler(WebSocketMessageType::UPDATE, [this](const nlohmann::json& msg_json){ ... });
+
+    std::cout << "Scene WebSocket handlers registered with APIService." << std::endl;
+}
+
+void scene_structure::sendChatMessage(const std::string& message) {
+    if (!WebSocketService::getInstance().isConnected()) {
+        std::cerr << "Cannot send message: WebSocket not connected" << std::endl;
+        return;
+    }
+    
+    // Create JSON message according to the API documentation
+    nlohmann::json chat_json;
+    chat_json["type"] = "CHAT";
+    chat_json["content"] = message;
+    std::string formatted_message = chat_json.dump();
+    
+    // Send the formatted message
+    WebSocketService::getInstance().send(formatted_message);
+    
+    // Also add our own message to the chat display immediately
+    ChatMessage own_message;
+    own_message.username = username;
+    own_message.message = message;
+    own_message.timestamp = static_cast<float>(glfwGetTime());
+    
+    {
+        std::lock_guard<std::mutex> lock(chat_mutex);
+        chat_messages.push_back(own_message);
+        while (chat_messages.size() > MAX_CHAT_MESSAGES) {
+            chat_messages.pop_front();
+        }
+    }
+}
 
 void scene_structure::display_frame()
 {
@@ -46,14 +175,24 @@ void scene_structure::display_frame()
 
         if(login_ui.is_login_button_clicked()){
             std::string auth_token = APIService::getInstance().getAuthToken();
-            std::cout << auth_token << std::endl;
-            WebSocketService::getInstance().connect("ws://10.42.234.85:4500/ws", auth_token, login_ui.get_roomid());
+            std::cout << "Auth token: " << auth_token << std::endl;
+            
+            // Connect to WebSocket server using WebSocketService directly
+            std::string ws_url = "ws://10.42.235.34:4500/ws";
+            if (WebSocketService::getInstance().connect(ws_url, auth_token, login_ui.get_roomid())) {
+                std::cout << "Connected to WebSocket server successfully" << std::endl;
+            } else {
+                std::cout << "Failed to connect to WebSocket server" << std::endl;
+            }
         }
 
         if(WebSocketService::getInstance().isConnected() || login_ui.get_email() == "admin"){
             current_state = GameState::MAIN_GAME;
             login_ui.reset_login_clicked();
             username = login_ui.get_username();
+            
+            // We don't need to send a join notification, the server will broadcast it
+            // automatically when we connect to the WebSocket
         }
     }
     
@@ -149,7 +288,47 @@ void scene_structure::display_weapon_info() {
 
 
 void scene_structure::display_chat(){
-    ImGui::Text("[Temporary Username]: [Temporary Message]");
+    // Create a fixed size chat window
+    const float CHAT_WINDOW_HEIGHT = 90.0f;  // Height in pixels
+    const float CHAT_WINDOW_WIDTH = 400.0f;   // Width in pixels
+    
+    // Begin a child window for the chat messages with a fixed size
+    ImGui::BeginChild("ChatMessages", ImVec2(CHAT_WINDOW_WIDTH, CHAT_WINDOW_HEIGHT), true);
+    
+    // Display only the last 3 chat messages from the queue
+    {
+        std::lock_guard<std::mutex> lock(chat_mutex);
+        if (!chat_messages.empty()) {
+            // Calculate starting index to show only the last 3 messages
+            size_t start_idx = (chat_messages.size() > 3) ? chat_messages.size() - 3 : 0;
+            
+            // Iterate through the last 3 messages (or fewer if there aren't 3 yet)
+            for (size_t i = start_idx; i < chat_messages.size(); ++i) {
+                const auto& msg = chat_messages[i];
+                // Different colors for different message types
+                ImVec4 usernameColor;
+                if (msg.username == "System") {
+                    usernameColor = ImVec4(0.8f, 0.8f, 0.2f, 1.0f); // Yellow for system
+                } else if (msg.username == "Error") {
+                    usernameColor = ImVec4(1.0f, 0.3f, 0.3f, 1.0f); // Red for errors
+                } else if (msg.username == username) {
+                    usernameColor = ImVec4(0.3f, 1.0f, 0.3f, 1.0f); // Green for own messages
+                } else {
+                    usernameColor = ImVec4(0.4f, 0.8f, 1.0f, 1.0f); // Blue for others
+                }
+                
+                ImGui::TextColored(usernameColor, "%s:", msg.username.c_str());
+                ImGui::SameLine();
+                ImGui::Text("%s", msg.message.c_str());
+            }
+        }
+    }
+    
+    // Auto-scroll to bottom - this ensures newest messages are always visible
+    ImGui::SetScrollHereY(1.0f);
+    ImGui::EndChild();
+    
+    // Chat input box
     ImGui::Text("Chat: ");
     ImGui::SameLine();
     
@@ -159,15 +338,19 @@ void scene_structure::display_chat(){
     // Process input text and handle Enter key for sending
     if (ImGui::InputText("##Chat", chat_buffer, IM_ARRAYSIZE(chat_buffer), 
                          ImGuiInputTextFlags_EnterReturnsTrue)) {
+        
+        // Make sure the message isn't empty
+        if (chat_buffer[0] != '\0') {
+            // Send the message
+            sendChatMessage(chat_buffer);
+            std::cout << "Message sent: " << chat_buffer << std::endl;
+        }
+        
+        // Hide the chat window
         showChat = false;
-        std::cout << "Message sent: " << chat_buffer << std::endl;
         
         // Clear the input field after sending
         chat_buffer[0] = '\0';
-        
-        // Return focus to the input field for continuous typing
-        ImGui::SetKeyboardFocusHere(-1);
-
     }
 }
 
@@ -193,29 +376,31 @@ void scene_structure::mouse_click_event()
 
 void scene_structure::keyboard_event()
 {
-    if (fps_mode) {
-        if (inputs.keyboard.last_action.key == GLFW_KEY_T) {
-
-            std::cout << "T key detected - Switching chat state" << std::endl;
-            showChat = true;
+    // Toggle chat with T key regardless of camera mode
+    if (inputs.keyboard.last_action.key == GLFW_KEY_T && inputs.keyboard.last_action.action == GLFW_PRESS) {
+        std::cout << "T key detected - Toggling chat" << std::endl;
+        showChat = !showChat;
+        if (showChat) {
+            // Clear the chat buffer when opening
             chat_buffer[0] = '\0';
         }
+    }
+    
+    // Different input handling based on camera mode
+    if (fps_mode) {
+        // Exit FPS mode with Escape key
         if (inputs.keyboard.is_pressed(GLFW_KEY_ESCAPE)) {
-            std::cout << "Player camera activated" << std::endl;
+            std::cout << "Player camera deactivated" << std::endl;
             toggle_fps_mode();
         }
-
-        
-        // Handle T key for toggling chat
-
     }
     else {
         // Standard orbit camera control
         camera_control.action_keyboard(environment.camera_view);
 
-        // Enter FPS mode with F key
+        // Enter FPS mode with ` key (backtick)
         if (inputs.keyboard.is_pressed('`')) {
-            std::cout << "Debug Camera activated" << std::endl;
+            std::cout << "Debug Camera deactivated, Player camera activated" << std::endl;
             toggle_fps_mode();
         }
     }
@@ -250,4 +435,15 @@ void scene_structure::toggle_fps_mode()
         // Show cursor for normal mode
         glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
+}
+
+// Clean up resources when closing the game
+void scene_structure::cleanup() {
+    // We don't need to send a leave message, the server will detect the
+    // disconnection and broadcast the notification automatically
+    
+    // Disconnect from WebSocket server
+    WebSocketService::getInstance().disconnect();
+    
+    std::cout << "Scene cleanup complete" << std::endl;
 }

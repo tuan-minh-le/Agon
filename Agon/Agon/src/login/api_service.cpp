@@ -9,7 +9,108 @@ APIService& APIService::getInstance() {
     return instance;
 }
 
-APIService::APIService() {}
+APIService::APIService() {
+    // Register our message handler with the WebSocketService
+    WebSocketService::getInstance().registerMessageHandler(
+        [this](const std::string& message) {
+            this->handleWebSocketMessage(message);
+        }
+    );
+}
+
+// WebSocket message handling
+bool APIService::connectWebSocket(const std::string& roomId) {
+    if (!isLoggedIn()) {
+        std::cerr << "Cannot connect to WebSocket: not logged in" << std::endl;
+        return false;
+    }
+    
+    std::string ws_url = "ws://" + base_url.substr(7) + "/ws"; // Convert http:// to ws://
+    return WebSocketService::getInstance().connect(ws_url, auth_token, roomId);
+}
+
+void APIService::disconnectWebSocket() {
+    WebSocketService::getInstance().disconnect();
+}
+
+bool APIService::isWebSocketConnected() const {
+    return WebSocketService::getInstance().isConnected();
+}
+
+void APIService::sendWebSocketMessage(const std::string& message) {
+    if (!isWebSocketConnected()) {
+        std::cerr << "Cannot send message: WebSocket not connected" << std::endl;
+        return;
+    }
+    WebSocketService::getInstance().send(message);
+}
+
+void APIService::registerWebSocketHandler(WebSocketMessageType type, 
+                                        std::function<void(const json&)> handler) {
+    std::lock_guard<std::mutex> lock(handlers_mutex_);
+    message_handlers_[type] = handler;
+}
+
+void APIService::handleWebSocketMessage(const std::string& message) {
+    try {
+        json data = json::parse(message);
+        WebSocketMessageType type = getMessageType(data);
+
+        std::function<void(const nlohmann::json&)> handler_to_call = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(handlers_mutex_);
+            auto it = message_handlers_.find(type);
+            if (it != message_handlers_.end() && it->second) {
+                handler_to_call = it->second;
+            }
+        }
+
+        if (handler_to_call) {
+            // If a specific handler is registered, call it
+            if (type == WebSocketMessageType::CHAT && data.contains("content") && data.contains("username")) {
+                // Optional: still log to console for debugging even if handler is called
+                std::cout << "[Debug] Chat message from " << data["username"].get<std::string>() << ": " 
+                          << data["content"].get<std::string>() << std::endl;
+            }
+            handler_to_call(data);
+        } else {
+            // No handler was registered for this message type
+            if (type == WebSocketMessageType::CHAT && data.contains("content") && data.contains("username")) {
+                // Specific handling for CHAT messages when no UI handler is present
+                std::cout << "Chat message (console only) from " << data["username"].get<std::string>() << ": " 
+                          << data["content"].get<std::string>() << std::endl;
+                std::cout << "Note: No UI handler registered for WebSocketMessageType::CHAT. "
+                          << "Register a handler using registerWebSocketHandler to display this in the chat box." << std::endl;
+            } else {
+                std::cout << "No handler registered for message type: " 
+                          << static_cast<int>(type) << " (raw message: " << message << ")" << std::endl;
+            }
+        }
+    } catch (const json::exception& e) {
+        std::cerr << "Error parsing WebSocket message: " << e.what() << " (message: " << message << ")" << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Error processing WebSocket message: " << e.what() << std::endl;
+    }
+}
+
+WebSocketMessageType APIService::getMessageType(const json& data) {
+    // Determine the message type based on the "type" field
+    try {
+        if (data.contains("type")) {
+            std::string type = data["type"];
+            
+            if (type == "ERROR") return WebSocketMessageType::ERROR;
+            if (type == "UPDATE") return WebSocketMessageType::UPDATE;
+            if (type == "SERVER") return WebSocketMessageType::SERVER;
+            if (type == "CHAT") return WebSocketMessageType::CHAT;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error determining message type: " << e.what() << std::endl;
+    }
+    
+    return WebSocketMessageType::UNKNOWN;
+}
+
 
 bool APIService::checkServerConnection() const{
     httplib::Client client(base_url);
