@@ -6,9 +6,7 @@
 #include "apartment.hpp"
 #include "login/login_ui.hpp"
 #include "login/websocket_service.hpp"
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
+#include "spectator.hpp"
 #include <string>
 #include <vector>
 #include <deque>
@@ -56,7 +54,10 @@ struct scene_structure : cgp::scene_inputs_generic {
 
     // Player for FPS movement
     Player player;
-    bool fps_mode;
+    Spectator spectator;
+    bool fps_mode = true; 
+    bool spectator_mode = false;
+
 
     std::string username;
 

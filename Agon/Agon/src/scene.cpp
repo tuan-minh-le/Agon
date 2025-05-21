@@ -27,6 +27,8 @@ void scene_structure::initialize()
     player.initialise(inputs, window);
     player.set_apartment(&apartment);
 
+    spectator.initialise(inputs, window);
+    spectator.set_apartment(&apartment);
     // Initialize player model data
     cgp::mesh player_mesh_data = cgp::mesh_load_file_obj("assets/man.obj");
     player_mesh_data.centered();
@@ -318,6 +320,10 @@ void scene_structure::display_frame()
                 glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             environment.camera_view = player.camera.camera_model.matrix_view();
         }
+        else if (spectator_mode){
+            glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            environment.camera_view = spectator.camera.camera_model.matrix_view();
+        }
         else {
             // Use orbit camera view
             environment.camera_view = camera_control.camera_model.matrix_view();
@@ -470,6 +476,9 @@ void scene_structure::mouse_move_event()
             player.handle_mouse_move(inputs.mouse.position.current, inputs.mouse.position.previous, environment.camera_view);
         }
     }
+    else if (spectator_mode && !inputs.mouse.on_gui){
+        spectator.handle_mouse_move(inputs.mouse.position.current, inputs.mouse.position.previous, environment.camera_view);
+    }
     else if (!inputs.keyboard.shift) {
         // Standard orbit camera control for non-FPS mode
         camera_control.action_mouse_move(environment.camera_view);
@@ -494,22 +503,26 @@ void scene_structure::keyboard_event()
     }
     
     // Different input handling based on camera mode
-    if (fps_mode) {
-        // Exit FPS mode with Escape key
-        if (inputs.keyboard.is_pressed(GLFW_KEY_ESCAPE)) {
-            std::cout << "Player camera deactivated" << std::endl;
-            toggle_fps_mode();
+     if (inputs.keyboard.is_pressed(GLFW_KEY_F1)) {
+        fps_mode = true;
+        spectator_mode = false;
+        glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        std::cout << "FPS mode activated" << std::endl;
         }
+    else if (inputs.keyboard.is_pressed(GLFW_KEY_F2)) {
+        fps_mode = false;
+        spectator_mode = true;
+        glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        // Copier la position du joueur FPS vers le spectateur
+        spectator.position = player.getPosition();
+        spectator.camera.camera_model = player.camera.camera_model; // copie orientation complète
+        std::cout << "Spectator mode activated" << std::endl;
     }
-    else {
-        // Standard orbit camera control
-        camera_control.action_keyboard(environment.camera_view);
-
-        // Enter FPS mode with ` key (backtick)
-        if (inputs.keyboard.is_pressed('`')) {
-            std::cout << "Debug Camera deactivated, Player camera activated" << std::endl;
-            toggle_fps_mode();
-        }
+    else if (inputs.keyboard.is_pressed(GLFW_KEY_F3)) {
+        fps_mode = false;
+        spectator_mode = false;
+        glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        std::cout << "Debug camera activated" << std::endl;
     }
 }
 
@@ -564,7 +577,11 @@ void scene_structure::idle_frame() {
             }
         }
     }
+    else if (spectator_mode) {
+        spectator.update(inputs.time_interval, inputs.keyboard, inputs.mouse, environment.camera_view);
+    }
     else {
+        
         camera_control.idle_frame(environment.camera_view);
     }
 }
