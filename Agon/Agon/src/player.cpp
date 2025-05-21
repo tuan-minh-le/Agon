@@ -1,17 +1,21 @@
 #include "player.hpp"
+#include "environment.hpp" // Keep this include
+#include <algorithm> // For std::clamp
+#include <cmath> // For M_PI/cgp::Pi if not available directly
 
 Player::Player()
     :movement_speed(0.f), height(0.f), position(0, 0, 0),
     velocity(0, 0, 0), acceleration(15.0f), deceleration(10.0f), max_velocity(6.0f),
-    current_pitch(0.0f), max_pitch_up(85.0f), max_pitch_down(-85.0f), isGrounded(true), collision_radius(0.f) {
+    current_pitch(0.0f), max_pitch_up(85.0f), max_pitch_down(-85.0f), isGrounded(true), collision_radius(0.f),
+    shooting_flag(false), moving_flag(false) { // Initialize new flags
 }
 
 void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& window) {
     hp = 100;
 
     movement_speed = 6.0f;
-    height = 1.7f;
-    position = cgp::vec3(-20.f, -20.f, height);
+    height = 1.9f;
+    position = cgp::vec3(-3.f, -3.f, height);
     collision_radius = 0.5f;
 
     // Initialize smooth movement variables
@@ -38,6 +42,25 @@ void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& windo
     camera.is_cursor_trapped = true;
 
     weapon.initialize();
+
+    // The player_visual_model will be initialized by set_initial_model_properties
+    // using the base_player_mesh and initial_player_model_rotation from the scene.
+    // So, remove direct loading and initialization here.
+    // cgp::mesh model_mesh = cgp::mesh_load_file_obj("assets/man.obj");
+    // model_mesh.centered(); 
+    // model_mesh.scale(0.16f); 
+    // initial_model_rotation = cgp::rotation_transform::from_axis_angle({1, 0, 0}, 90.0f * cgp::Pi / 180.0f);
+    // model_mesh.apply_transform(initial_model_rotation.matrix()); 
+    // player_visual_model.initialize_data_on_gpu(model_mesh);
+}
+
+void Player::set_initial_model_properties(const cgp::mesh& base_mesh_data, const cgp::rotation_transform& initial_rotation_transform) {
+    initial_model_rotation = initial_rotation_transform; // Store the initial rotation
+    player_visual_model.initialize_data_on_gpu(base_mesh_data);
+    player_visual_model.model.set_scaling(0.6f);
+    // The base_mesh_data is already centered, scaled, and rotated by initial_player_model_rotation in scene.cpp
+    // So, we don't need to apply initial_model_rotation.matrix() to player_visual_model.model.rotation here.
+    // The player_visual_model.model.rotation will be updated in Player::update based on camera orientation.
 }
 
 void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, const cgp::inputs_mouse_parameters& mouse, cgp::mat4& camera_view_matrix) {
@@ -45,6 +68,10 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
     static cgp::vec3 right;
     static cgp::vec3 desired_direction(0, 0, 0);
     static cgp::vec3 velocity_change;
+
+    // Reset flags at the beginning of each update
+    shooting_flag = false;
+    moving_flag = false;
 
     forward = camera.camera_model.front();
     right = camera.camera_model.right();
@@ -54,6 +81,7 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
 
     if (mouse.click.left) {
         weapon.shoot();
+        shooting_flag = true; // Set shooting flag
     }
 
     if (keyboard.is_pressed(GLFW_KEY_R)) {
@@ -68,15 +96,19 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
     desired_direction = { 0,0,0 };
     if (keyboard.is_pressed(GLFW_KEY_W)) {
         desired_direction += forward;
+        moving_flag = true; // Set moving flag
     }
     if (keyboard.is_pressed(GLFW_KEY_S)) {
         desired_direction -= forward;
+        moving_flag = true; // Set moving flag
     }
     if (keyboard.is_pressed(GLFW_KEY_D)) {
         desired_direction += right;
+        moving_flag = true; // Set moving flag
     }
     if (keyboard.is_pressed(GLFW_KEY_A)) {
         desired_direction -= right;
+        moving_flag = true; // Set moving flag
     }
 
     // Normalize the desired direction if it's not zero
@@ -137,8 +169,6 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
         verticalVelocity -= gravity * dt; // Apply gravity
     }
 
-    cgp::vec3 previous_position = position;
-
     // Update vertical position first (jumping/falling)
     position.z += verticalVelocity * dt;
 
@@ -189,10 +219,22 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
     weapon.update(dt);
 
     // Update camera position
-    camera.camera_model.position_camera = position;
+    // camera.camera_model.position_camera = position; // Original line
+    float camera_forward_offset = 0.5f; // Adjust this distance as needed
+    camera.camera_model.position_camera = position + camera.camera_model.front() * camera_forward_offset;
     camera_view_matrix = camera.camera_model.matrix_view();
-}
 
+    // Update player model's visual properties
+    player_visual_model.model.translation = position;
+    player_visual_model.model.translation.z -= 0.5f; // User added offset
+
+    // Model should rotate with camera's yaw, around the Z-axis.
+    // Assumes camera.camera_model.axis_of_rotation is {0,0,1} due to set_rotation_axis_z()
+    // and camera.camera_model.yaw is the yaw angle.
+    player_visual_model.model.rotation = cgp::rotation_transform::from_axis_angle({0,0,1}, camera.camera_model.yaw);
+
+
+}
 
 
 cgp::vec3 Player::compute_push_direction(const cgp::vec3& pos) {
@@ -237,45 +279,33 @@ cgp::vec3 Player::getPosition() const
     return position;
 }
 
+// Implementations for new methods
+bool Player::isShooting() const {
+    return shooting_flag;
+}
+
+bool Player::isMoving() const {
+    return moving_flag;
+}
+
 void Player::handle_mouse_move(cgp::vec2 const& mouse_position_current, cgp::vec2 const& mouse_position_previous, cgp::mat4& camera_view_matrix) {
-    // Calculate mouse movement delta
-    static cgp::vec2 dp;
-    dp = mouse_position_current - mouse_position_previous;
+    // Standard FPS camera behavior: mouse movement controls camera orientation
+    camera.action_mouse_move(camera_view_matrix); // This updates camera_model.pitch, yaw and camera_view_matrix
 
-    // Only process if movement is meaningful
-    if (std::abs(dp.x) > 0.001f || std::abs(dp.y) > 0.001f) {
-        // Calculate pitch change in degrees (approximate)
-        float pitch_change_degrees = dp.y * 180 / cgp::Pi; // Convert from radians to degrees (57.3 = 180/?)
+    // Clamp pitch
+    float& current_cam_pitch_rad = camera.camera_model.pitch; // Pitch is in radians
 
-        // Check if the new pitch would exceed limits
-        float new_pitch = current_pitch + pitch_change_degrees;
+    // Convert player's degree-based limits to radians
+    // Note: cgp::Pi should be available. If not, use M_PI from <cmath> or define Pi.
+    float local_max_pitch_up_rad = max_pitch_up * cgp::Pi / 180.0f;
+    float local_max_pitch_down_rad = max_pitch_down * cgp::Pi / 180.0f; // This is a negative value
 
-        // Clamp pitch within limits
-        if (new_pitch > max_pitch_up) {
-            pitch_change_degrees = max_pitch_up - current_pitch;
-            current_pitch = max_pitch_up;
-        }
-        else if (new_pitch < max_pitch_down) {
-            pitch_change_degrees = max_pitch_down - current_pitch;
-            current_pitch = max_pitch_down;
-        }
-        else {
-            current_pitch = new_pitch;
-        }
+    current_cam_pitch_rad = cgp::clamp(current_cam_pitch_rad, local_max_pitch_down_rad, local_max_pitch_up_rad);
 
-        // Apply rotation with constrained pitch
-        if (pitch_change_degrees != 0.0f) {
-            // Convert back to radians for the camera system
-            float pitch_change_radians = pitch_change_degrees * cgp::Pi / 180;
-            camera.camera_model.manipulator_rotate_roll_pitch_yaw(0, pitch_change_radians, 0);
-        }
+    // Recompute camera_view_matrix as pitch might have been clamped
+    camera_view_matrix = camera.camera_model.matrix_view();
 
-        // Apply yaw (horizontal rotation) without restrictions
-        camera.camera_model.manipulator_rotate_roll_pitch_yaw(0, 0, -dp.x);
-
-        // Update the camera view matrix
-        camera_view_matrix = camera.camera_model.matrix_view();
-    }
+    // The player model's rotation will be updated in Player::update based on camera.camera_model.yaw
 }
 
 void Player::set_apartment(Apartment* apartment_ptr)
@@ -287,11 +317,14 @@ const Weapon& Player::getWeapon(){
     return weapon;
 }
 
-//void Player::load_model(const std::string& model_path)
-//{
-//    cgp::mesh model_mesh = cgp::mesh_load_file_obj("assets/player.obj");
-//}
-//
-//void Player::draw(const cgp::environment_generic_structure& environment)
-//{
-//}
+void Player::draw_model(const cgp::environment_generic_structure& environment) {
+    // Ensure the model is updated with the latest position and rotation before drawing
+    // This might be redundant if update() is always called before draw_model()
+    // player_visual_model.model.translation = position;
+    // cgp::rotation_transform camera_orientation = camera.camera_model.orientation();
+    // cgp::mat4 view_matrix_no_pitch = cgp::look_at(cgp::vec3{0,0,0}, camera.camera_model.front_no_pitch(), camera.camera_model.up());
+    // cgp::rotation_transform yaw_rotation = cgp::rotation_transform(cgp::mat3(view_matrix_no_pitch).inverse());
+    // player_visual_model.model.rotation = yaw_rotation * initial_model_rotation;
+
+    draw(player_visual_model, environment);
+}

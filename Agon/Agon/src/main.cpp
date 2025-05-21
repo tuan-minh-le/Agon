@@ -159,7 +159,7 @@ void animation_loop()
 		if(scene.showChat){
 			// Set window position BEFORE ImGui::Begin
 			ImGui::SetNextWindowPos(
-				ImVec2(10, scene.window.height - 130),  // X=10, Y=window_height-180 (bottom left)
+				ImVec2(10, scene.window.height - 160),  // X=10, Y=window_height-180 (bottom left)
 				ImGuiCond_Always
 			);
 			

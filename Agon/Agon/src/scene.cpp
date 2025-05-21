@@ -27,6 +27,21 @@ void scene_structure::initialize()
     player.initialise(inputs, window);
     player.set_apartment(&apartment);
 
+    // Initialize player model data
+    cgp::mesh player_mesh_data = cgp::mesh_load_file_obj("assets/man.obj");
+    player_mesh_data.centered();
+    player_mesh_data.scale(0.16f); // Set a base scale for the mesh data
+    // Rotate the mesh to be upright. Assuming model is oriented along Y and needs to be pitched up.
+    player_mesh_data.rotate({1, 0, 0}, cgp::Pi / 2.0f); 
+    player_mesh_data.rotate({0, 0, 1}, cgp::Pi);
+
+    // The second argument (initial_rotation_transform) is stored by Player
+    // but currently not used by Player::update's rotation logic.
+    // Pass identity, as player_mesh_data is now in its correct base orientation.
+    cgp::rotation_transform player_initial_base_rotation; 
+    player.set_initial_model_properties(player_mesh_data, player_initial_base_rotation);
+
+    // The mesh_obj and obj_man below are for a separate model, possibly for debugging or other scene elements.
     mesh_obj = mesh_load_file_obj("assets/man.obj");
 
 
@@ -135,6 +150,83 @@ void scene_structure::setupWebSocketHandlers() {
     // You can also register a handler for WebSocketMessageType::UPDATE if needed
     // APIService::getInstance().registerWebSocketHandler(WebSocketMessageType::UPDATE, [this](const nlohmann::json& msg_json){ ... });
 
+    // Handler for UPDATE messages (player states from server)
+    APIService::getInstance().registerWebSocketHandler(
+        WebSocketMessageType::UPDATE,
+        [this](const nlohmann::json& msg_json) {
+            try {
+                if (msg_json.contains("username") && msg_json.contains("content")) {
+                    std::string remote_username = msg_json["username"].get<std::string>();
+                    
+                    // Ignore updates for the local player
+                    if (remote_username == this->username) {
+                        return;
+                    }
+
+                    const auto& content = msg_json["content"];
+                    cgp::vec3 remote_position;
+                    cgp::mat4 remote_aim_matrix;
+
+                    // Safely extract position
+                    if (content.contains("position") && content["position"].is_object()) {
+                        const auto& pos_json = content["position"];
+                        remote_position.x = pos_json.value("x", 0.0f);
+                        remote_position.y = pos_json.value("y", 0.0f);
+                        remote_position.z = pos_json.value("z", 0.0f);
+                    } else {
+                        std::cerr << "Malformed UPDATE: position missing or not an object." << std::endl;
+                        return;
+                    }
+
+                    // Safely extract aimDirection matrix
+                    if (content.contains("aimDirection") && content["aimDirection"].is_array() && content["aimDirection"].size() == 4) {
+                        for (int i = 0; i < 4; ++i) {
+                            if (content["aimDirection"][i].is_array() && content["aimDirection"][i].size() == 4) {
+                                for (int j = 0; j < 4; ++j) {
+                                    remote_aim_matrix(i, j) = content["aimDirection"][i][j].get<float>();
+                                }
+                            } else {
+                                std::cerr << "Malformed UPDATE: aimDirection matrix row " << i << " is not a 4-element array." << std::endl;
+                                return;
+                            }
+                        }
+                    } else {
+                        std::cerr << "Malformed UPDATE: aimDirection missing or not a 4x4 array." << std::endl;
+                        return;
+                    }
+                    
+                    // bool is_shooting = content.value("isShooting", false);
+                    // bool is_moving = content.value("isMoving", false);
+
+                    // Lock before accessing remote_players map
+                    std::lock_guard<std::mutex> lock(remote_players_mutex);
+
+                    // Check if player exists, if not, create and initialize
+                    if (remote_players.find(remote_username) == remote_players.end()) {
+                        remote_players[remote_username] = RemotePlayer();
+                        // Initialize with the same pre-rotated mesh as the local player
+                        cgp::mesh remote_player_mesh_data = cgp::mesh_load_file_obj("assets/man.obj");
+                        remote_player_mesh_data.centered();
+                        remote_player_mesh_data.scale(0.16f);
+                        remote_player_mesh_data.rotate({1, 0, 0}, cgp::Pi / 2.0f); 
+                        remote_player_mesh_data.rotate({0, 0, 1}, cgp::Pi); // Face forward
+                        remote_players[remote_username].initialize_data_on_gpu(remote_player_mesh_data);
+                        remote_players[remote_username].model_drawable.model.set_scaling(0.6f); // Same scaling as local player
+                        std::cout << "Created new remote player: " << remote_username << std::endl;
+                    }
+                    
+                    // Update player state
+                    remote_players[remote_username].update_state(remote_position, remote_aim_matrix);
+
+                } else {
+                    std::cerr << "Malformed UPDATE message received by scene's UPDATE handler: " << msg_json.dump() << std::endl;
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Error in scene's UPDATE handler: " << e.what() << std::endl;
+            }
+        });
+
+
     std::cout << "Scene WebSocket handlers registered with APIService." << std::endl;
 }
 
@@ -235,6 +327,20 @@ void scene_structure::display_frame()
         environment.light = camera_control.camera_model.position();
 
         apartment.draw(environment);
+
+        // Draw the local player's model
+        // Model is now always drawn, visible in both FPS and free-camera/orbit mode.
+        player.draw_model(environment);
+
+        // Draw remote players
+        {
+            std::lock_guard<std::mutex> lock(remote_players_mutex);
+            for (auto const& [name, remote_player_data] : remote_players) {
+                if (name != username) { // Don't draw local player again
+                    remote_player_data.draw(environment);
+                }
+            }
+        }
 
         // Draw the frame if enabled
         if (gui.display_frame)
@@ -417,6 +523,45 @@ void scene_structure::idle_frame() {
         if (update_timer >= 0.016f) { // ~60 fps
             player.update(update_timer, inputs.keyboard, inputs.mouse, environment.camera_view);
             update_timer = 0;
+
+            // Send player state update
+            { // Scope for json objects
+                nlohmann::json update_payload;
+                update_payload["type"] = "UPDATE";
+
+                nlohmann::json content_data;
+                
+                // Player Position (x, y as per example)
+                cgp::vec3 player_pos = player.getPosition();
+                content_data["position"]["x"] = player_pos.x;
+                content_data["position"]["y"] = player_pos.y;
+                content_data["position"]["z"] = player_pos.z; // Added z coordinate
+
+                // Aim Direction (4x4 matrix from camera view)
+                // This assumes environment.camera_view is already a cgp::mat4
+                // and that cgp::mat4 is indexable as (row, column)
+                cgp::mat4 aim_matrix = environment.camera_view; // Corrected: environment.camera_view is already the matrix
+                nlohmann::json aim_json_matrix = nlohmann::json::array();
+                for (int r = 0; r < 4; ++r) {
+                    nlohmann::json row_array = nlohmann::json::array();
+                    for (int c = 0; c < 4; ++c) {
+                        row_array.push_back(aim_matrix(r, c));
+                    }
+                    aim_json_matrix.push_back(row_array);
+                }
+                content_data["aimDirection"] = aim_json_matrix;
+
+                // Player states (assuming these methods exist on the Player class)
+                content_data["isShooting"] = player.isShooting(); 
+                content_data["isMoving"] = player.isMoving();   
+                
+                update_payload["content"] = content_data;
+
+                // Send the message via WebSocket if connected
+                if (WebSocketService::getInstance().isConnected()) {
+                    WebSocketService::getInstance().send(update_payload.dump());
+                }
+            }
         }
     }
     else {

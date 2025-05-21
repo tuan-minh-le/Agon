@@ -14,6 +14,8 @@
 #include <deque>
 #include <mutex>
 #include <nlohmann/json.hpp>
+#include <map> // Required for std::map
+#include "remote_player.hpp" // Include the new RemotePlayer header
 
 using cgp::mesh_drawable;
 
@@ -70,6 +72,10 @@ struct scene_structure : cgp::scene_inputs_generic {
     float previous_x_rotation;
     float previous_y_rotation;
 
+    // Base mesh and initial rotation for all player models
+    cgp::mesh base_player_mesh;
+    cgp::rotation_transform initial_player_model_rotation;
+
     // OBJ Models
     cgp::mesh mesh_obj;
     cgp::mesh_drawable obj_man;
@@ -82,6 +88,10 @@ struct scene_structure : cgp::scene_inputs_generic {
     std::deque<ChatMessage> chat_messages;
     const size_t MAX_CHAT_MESSAGES = 10;  // Maximum number of messages to display
     std::mutex chat_mutex;  // For thread safety when adding messages
+
+    // Storage for remote players
+    std::map<std::string, RemotePlayer> remote_players;
+    std::mutex remote_players_mutex; // For thread safety when accessing remote_players
 
     // Core functions
     void initialize();    // Standard initialization to be called before the animation loop
