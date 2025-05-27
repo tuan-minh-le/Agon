@@ -1,7 +1,8 @@
 #pragma once
 
 #include "cgp/cgp.hpp"
-#include <cmath> // For std::atan2
+#include <cmath> // For std::atan2, std::isfinite
+#include <iostream> // For std::cerr
 
 struct RemotePlayer {
     cgp::vec3 position;
@@ -22,32 +23,26 @@ struct RemotePlayer {
     }
 
     void update_state(const cgp::vec3& position_arg, const cgp::mat4& aim_direction_matrix_arg) {
+        // Simple and safe approach - just ignore the aim direction for now to prevent crashes
         position = position_arg;
         
-        // aim_direction_matrix_arg is the camera view matrix of the remote player.
-        // It transforms world coordinates to the remote player's camera coordinates.
-        // V_cam = R_cam * T_cam
-        // The 3x3 part of V_cam is R_cam (world to camera orientation)
-        // We need R_model_world = (R_cam)^-1 to get camera orientation in world.
-        // R_model_world = Rz(yaw)Rx(pitch)
+        // Validate position values
+        if (!std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z)) {
+            std::cerr << "Invalid position values in RemotePlayer::update_state, using (0,0,0)" << std::endl;
+            position = cgp::vec3(0, 0, 0);
+        }
         
-        cgp::mat3 R_world_to_camera = cgp::mat3(aim_direction_matrix_arg); 
-        cgp::mat3 R_camera_to_world = cgp::inverse(R_world_to_camera); // Corrected: Use cgp::inverse()
-
-        // Extract yaw from R_camera_to_world matrix
-        // Assuming R_camera_to_world = Rz(yaw) * Rx(pitch)
-        // R_camera_to_world(0,0) = cos(yaw)
-        // R_camera_to_world(1,0) = sin(yaw)
-        float remote_yaw = std::atan2(R_camera_to_world(1,0), R_camera_to_world(0,0));
-
-        // This orientation is only the yaw around Z-axis.
-        // The base mesh (provided during initialize_data_on_gpu) should already be
-        // rotated to be upright and face the correct "base" direction (e.g. +X).
-        // The local player model faces +X after its rotations in scene.cpp, and its final rotation is also just yaw.
-        orientation = cgp::rotation_transform::from_axis_angle({0,0,1}, remote_yaw); 
+        // For now, just keep the remote player facing forward (identity rotation)
+        // This prevents all the matrix inversion issues that were causing crashes
+        orientation = cgp::rotation_transform();
         
-        model_drawable.model.translation = position; // Corrected: Use .translation instead of .position
-        model_drawable.model.rotation = orientation; 
+        // Update the model transform safely
+        try {
+            model_drawable.model.translation = position;
+            model_drawable.model.rotation = orientation;
+        } catch (const std::exception& e) {
+            std::cerr << "Exception setting model transform in RemotePlayer::update_state: " << e.what() << std::endl;
+        } 
         // If the base mesh isn't pre-rotated fully (including the 180-degree turn for man.obj), 
         // we might need: model_drawable.model.rotation = orientation * initial_model_rotation_for_facing_direction;
         // However, consistency with local player setup (which now pre-rotates the mesh fully) is better.

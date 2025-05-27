@@ -155,74 +155,160 @@ void scene_structure::setupWebSocketHandlers() {
         WebSocketMessageType::UPDATE,
         [this](const nlohmann::json& msg_json) {
             try {
+                // Validate JSON structure first
+                if (!msg_json.is_object()) {
+                    std::cerr << "UPDATE message is not a JSON object" << std::endl;
+                    return;
+                }
+
+                // Check if the message has the expected structure
+                std::string remote_username;
+                const nlohmann::json* content_ptr = nullptr;
+                
                 if (msg_json.contains("username") && msg_json.contains("content")) {
-                    std::string remote_username = msg_json["username"].get<std::string>();
-                    
-                    // Ignore updates for the local player
-                    if (remote_username == this->username) {
+                    // Standard format: {"username": "...", "content": {...}}
+                    try {
+                        remote_username = msg_json["username"].get<std::string>();
+                        content_ptr = &msg_json["content"];
+                    } catch (const std::exception& e) {
+                        std::cerr << "Failed to extract username from UPDATE: " << e.what() << std::endl;
                         return;
                     }
+                } else if (msg_json.contains("content") && msg_json["content"].contains("username")) {
+                    // Alternative format: {"content": {"username": "...", ...}}
+                    try {
+                        remote_username = msg_json["content"]["username"].get<std::string>();
+                        content_ptr = &msg_json["content"];
+                    } catch (const std::exception& e) {
+                        std::cerr << "Failed to extract username from UPDATE content: " << e.what() << std::endl;
+                        return;
+                    }
+                } else {
+                    std::cerr << "UPDATE message missing required fields (username and content)" << std::endl;
+                    std::cerr << "Message structure: " << msg_json.dump() << std::endl;
+                    return;
+                }
+                
+                // Ignore updates for the local player
+                if (remote_username.empty() || remote_username == this->username) {
+                    return;
+                }
 
-                    const auto& content = msg_json["content"];
-                    cgp::vec3 remote_position;
-                    cgp::mat4 remote_aim_matrix;
+                const auto& content = *content_ptr;
+                if (!content.is_object()) {
+                    std::cerr << "UPDATE content is not a JSON object" << std::endl;
+                    return;
+                }
 
-                    // Safely extract position
-                    if (content.contains("position") && content["position"].is_object()) {
-                        const auto& pos_json = content["position"];
+                cgp::vec3 remote_position(0.0f, 0.0f, 0.0f);
+                cgp::mat4 remote_aim_matrix = cgp::mat4::build_identity();
+
+                // Safely extract position with more robust validation
+                if (content.contains("position") && content["position"].is_object()) {
+                    const auto& pos_json = content["position"];
+                    try {
                         remote_position.x = pos_json.value("x", 0.0f);
                         remote_position.y = pos_json.value("y", 0.0f);
                         remote_position.z = pos_json.value("z", 0.0f);
-                    } else {
-                        std::cerr << "Malformed UPDATE: position missing or not an object." << std::endl;
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error extracting position values: " << e.what() << std::endl;
                         return;
                     }
+                } else {
+                    std::cerr << "UPDATE: position missing or not an object" << std::endl;
+                    return;
+                }
 
-                    // Safely extract aimDirection matrix
-                    if (content.contains("aimDirection") && content["aimDirection"].is_array() && content["aimDirection"].size() == 4) {
+                // Safely extract aimDirection matrix with bounds checking
+                if (content.contains("aimDirection") && content["aimDirection"].is_array() && content["aimDirection"].size() == 4) {
+                    try {
+                        // Log the matrix values for debugging
+                        std::cout << "Processing aimDirection matrix for " << remote_username << std::endl;
+                        
                         for (int i = 0; i < 4; ++i) {
-                            if (content["aimDirection"][i].is_array() && content["aimDirection"][i].size() == 4) {
-                                for (int j = 0; j < 4; ++j) {
-                                    remote_aim_matrix(i, j) = content["aimDirection"][i][j].get<float>();
-                                }
-                            } else {
-                                std::cerr << "Malformed UPDATE: aimDirection matrix row " << i << " is not a 4-element array." << std::endl;
+                            if (!content["aimDirection"][i].is_array() || content["aimDirection"][i].size() != 4) {
+                                std::cerr << "UPDATE: aimDirection matrix row " << i << " invalid" << std::endl;
                                 return;
                             }
+                            for (int j = 0; j < 4; ++j) {
+                                if (content["aimDirection"][i][j].is_number()) {
+                                    float value = content["aimDirection"][i][j].get<float>();
+                                    if (!std::isfinite(value)) {
+                                        std::cerr << "UPDATE: aimDirection matrix element [" << i << "][" << j << "] is not finite: " << value << std::endl;
+                                        return;
+                                    }
+                                    remote_aim_matrix(i, j) = value;
+                                } else {
+                                    std::cerr << "UPDATE: aimDirection matrix element [" << i << "][" << j << "] is not a number" << std::endl;
+                                    return;
+                                }
+                            }
                         }
-                    } else {
-                        std::cerr << "Malformed UPDATE: aimDirection missing or not a 4x4 array." << std::endl;
+                        
+                        // Check for very small matrix values that might indicate problems
+                        float matrix_magnitude = 0.0f;
+                        for (int i = 0; i < 4; ++i) {
+                            for (int j = 0; j < 4; ++j) {
+                                matrix_magnitude += std::abs(remote_aim_matrix(i, j));
+                            }
+                        }
+                        
+                        if (matrix_magnitude < 1e-3f) {
+                            std::cerr << "UPDATE: aimDirection matrix has very small magnitude: " << matrix_magnitude << ", using identity" << std::endl;
+                            remote_aim_matrix = cgp::mat4::build_identity();
+                        }
+                        
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error extracting aimDirection matrix: " << e.what() << std::endl;
                         return;
                     }
-                    
-                    // bool is_shooting = content.value("isShooting", false);
-                    // bool is_moving = content.value("isMoving", false);
+                } else {
+                    std::cerr << "UPDATE: aimDirection missing or not a 4x4 array" << std::endl;
+                    return;
+                }
 
-                    // Lock before accessing remote_players map
-                    std::lock_guard<std::mutex> lock(remote_players_mutex);
+                // Lock before accessing remote_players map - use try_lock to avoid deadlocks
+                std::unique_lock<std::mutex> lock(remote_players_mutex, std::try_to_lock);
+                if (!lock.owns_lock()) {
+                    std::cerr << "Could not acquire lock for remote_players - skipping update" << std::endl;
+                    return;
+                }
 
-                    // Check if player exists, if not, create and initialize
-                    if (remote_players.find(remote_username) == remote_players.end()) {
-                        remote_players[remote_username] = RemotePlayer();
+                // Check if player exists, if not, create and initialize
+                auto it = remote_players.find(remote_username);
+                if (it == remote_players.end()) {
+                    try {
+                        // Create new remote player
+                        RemotePlayer new_player;
+                        
                         // Initialize with the same pre-rotated mesh as the local player
                         cgp::mesh remote_player_mesh_data = cgp::mesh_load_file_obj("assets/man.obj");
                         remote_player_mesh_data.centered();
                         remote_player_mesh_data.scale(0.16f);
                         remote_player_mesh_data.rotate({1, 0, 0}, cgp::Pi / 2.0f); 
                         remote_player_mesh_data.rotate({0, 0, 1}, cgp::Pi); // Face forward
-                        remote_players[remote_username].initialize_data_on_gpu(remote_player_mesh_data);
-                        remote_players[remote_username].model_drawable.model.set_scaling(0.6f); // Same scaling as local player
+                        
+                        new_player.initialize_data_on_gpu(remote_player_mesh_data);
+                        new_player.model_drawable.model.set_scaling(0.6f); // Same scaling as local player
+                        
+                        // Insert the new player
+                        remote_players[remote_username] = std::move(new_player);
                         std::cout << "Created new remote player: " << remote_username << std::endl;
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error creating remote player " << remote_username << ": " << e.what() << std::endl;
+                        return;
                     }
-                    
-                    // Update player state
-                    remote_players[remote_username].update_state(remote_position, remote_aim_matrix);
-
-                } else {
-                    std::cerr << "Malformed UPDATE message received by scene's UPDATE handler: " << msg_json.dump() << std::endl;
                 }
+                
+                // Update player state safely
+                try {
+                    remote_players[remote_username].update_state(remote_position, remote_aim_matrix);
+                } catch (const std::exception& e) {
+                    std::cerr << "Error updating state for remote player " << remote_username << ": " << e.what() << std::endl;
+                }
+
             } catch (const std::exception& e) {
-                std::cerr << "Error in scene's UPDATE handler: " << e.what() << std::endl;
+                std::cerr << "Critical error in scene's UPDATE handler: " << e.what() << std::endl;
             }
         });
 
@@ -270,7 +356,7 @@ void scene_structure::display_frame()
             std::cout << "Auth token: " << auth_token << std::endl;
             
             // Connect to WebSocket server using WebSocketService directly
-            std::string ws_url = "ws://10.42.235.34:4500/ws";
+            std::string ws_url = "ws://10.42.229.253:4500/ws";
             if (WebSocketService::getInstance().connect(ws_url, auth_token, login_ui.get_roomid())) {
                 std::cout << "Connected to WebSocket server successfully" << std::endl;
                 roomID = login_ui.get_roomid();
@@ -335,7 +421,9 @@ void scene_structure::display_frame()
         // Draw remote players
         {
             std::lock_guard<std::mutex> lock(remote_players_mutex);
-            for (auto const& [name, remote_player_data] : remote_players) {
+            for (auto const& remote_pair : remote_players) {
+                const std::string& name = remote_pair.first;
+                const RemotePlayer& remote_player_data = remote_pair.second;
                 if (name != username) { // Don't draw local player again
                     remote_player_data.draw(environment);
                 }
@@ -524,42 +612,72 @@ void scene_structure::idle_frame() {
             player.update(update_timer, inputs.keyboard, inputs.mouse, environment.camera_view);
             update_timer = 0;
 
-            // Send player state update
-            { // Scope for json objects
-                nlohmann::json update_payload;
-                update_payload["type"] = "UPDATE";
+            // Send player state update - only if connected and username is set
+            if (WebSocketService::getInstance().isConnected() && !username.empty()) {
+                try {
+                    nlohmann::json update_payload;
+                    update_payload["type"] = "UPDATE";
 
-                nlohmann::json content_data;
-                
-                // Player Position (x, y as per example)
-                cgp::vec3 player_pos = player.getPosition();
-                content_data["position"]["x"] = player_pos.x;
-                content_data["position"]["y"] = player_pos.y;
-                content_data["position"]["z"] = player_pos.z; // Added z coordinate
-
-                // Aim Direction (4x4 matrix from camera view)
-                // This assumes environment.camera_view is already a cgp::mat4
-                // and that cgp::mat4 is indexable as (row, column)
-                cgp::mat4 aim_matrix = environment.camera_view; // Corrected: environment.camera_view is already the matrix
-                nlohmann::json aim_json_matrix = nlohmann::json::array();
-                for (int r = 0; r < 4; ++r) {
-                    nlohmann::json row_array = nlohmann::json::array();
-                    for (int c = 0; c < 4; ++c) {
-                        row_array.push_back(aim_matrix(r, c));
+                    nlohmann::json content_data;
+                    
+                    // Player Position - validate position values
+                    cgp::vec3 player_pos = player.getPosition();
+                    
+                    // Check for NaN or infinite values
+                    if (std::isfinite(player_pos.x) && std::isfinite(player_pos.y) && std::isfinite(player_pos.z)) {
+                        content_data["position"]["x"] = player_pos.x;
+                        content_data["position"]["y"] = player_pos.y;
+                        content_data["position"]["z"] = player_pos.z;
+                    } else {
+                        std::cerr << "Invalid player position detected, skipping update" << std::endl;
+                        return;
                     }
-                    aim_json_matrix.push_back(row_array);
-                }
-                content_data["aimDirection"] = aim_json_matrix;
 
-                // Player states (assuming these methods exist on the Player class)
-                content_data["isShooting"] = player.isShooting(); 
-                content_data["isMoving"] = player.isMoving();   
-                
-                update_payload["content"] = content_data;
+                    // Aim Direction (4x4 matrix from camera view)
+                    cgp::mat4 aim_matrix = environment.camera_view;
+                    nlohmann::json aim_json_matrix = nlohmann::json::array();
+                    
+                    bool matrix_valid = true;
+                    for (int r = 0; r < 4; ++r) {
+                        nlohmann::json row_array = nlohmann::json::array();
+                        for (int c = 0; c < 4; ++c) {
+                            float value = aim_matrix(r, c);
+                            if (!std::isfinite(value)) {
+                                matrix_valid = false;
+                                break;
+                            }
+                            row_array.push_back(value);
+                        }
+                        if (!matrix_valid) break;
+                        aim_json_matrix.push_back(row_array);
+                    }
+                    
+                    if (!matrix_valid) {
+                        std::cerr << "Invalid aim matrix detected, skipping update" << std::endl;
+                        return;
+                    }
+                    
+                    content_data["aimDirection"] = aim_json_matrix;
 
-                // Send the message via WebSocket if connected
-                if (WebSocketService::getInstance().isConnected()) {
-                    WebSocketService::getInstance().send(update_payload.dump());
+                    // Player states (with safe method calls)
+                    try {
+                        content_data["isShooting"] = player.isShooting(); 
+                        content_data["isMoving"] = player.isMoving();   
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error getting player states: " << e.what() << std::endl;
+                        // Use default values
+                        content_data["isShooting"] = false;
+                        content_data["isMoving"] = false;
+                    }
+                    
+                    update_payload["content"] = content_data;
+
+                    // Send the message via WebSocket if still connected
+                    if (WebSocketService::getInstance().isConnected()) {
+                        WebSocketService::getInstance().send(update_payload.dump());
+                    }
+                } catch (const std::exception& e) {
+                    std::cerr << "Error creating or sending player update: " << e.what() << std::endl;
                 }
             }
         }

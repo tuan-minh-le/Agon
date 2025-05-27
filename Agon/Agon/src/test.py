@@ -77,7 +77,7 @@ class VoiceChatClient:
 
 if __name__ == "__main__":
     room_id = str(sys.argv[1]) if len(sys.argv) > 1 else "default"
-    ip_serveur = "10.42.234.253"
+    ip_serveur = "10.42.229.253"
     port_serveur = 12345
 
     client = VoiceChatClient(ip_serveur, port_serveur)

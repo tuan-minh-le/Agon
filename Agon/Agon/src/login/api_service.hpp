@@ -57,7 +57,7 @@ public:
 private:
     APIService();
     // Make sure there's no trailing slash in base_url
-    std::string base_url = "http://10.42.235.34:4500";
+    std::string base_url = "http://10.42.229.253:4500";
     std::string auth_token;
 
     LoginStatus status = LoginStatus::IDLE;
