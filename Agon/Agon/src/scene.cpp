@@ -192,7 +192,9 @@ void scene_structure::setupWebSocketHandlers() {
                 }
                 
                 // Ignore updates for the local player
+                std::cout << "DEBUG: remote_username='" << remote_username << "', this->username='" << this->username << "'" << std::endl;
                 if (remote_username.empty() || remote_username == this->username) {
+                    std::cout << "Skipping UPDATE for local player: " << remote_username << std::endl;
                     return;
                 }
 
@@ -227,6 +229,9 @@ void scene_structure::setupWebSocketHandlers() {
                         // Log the matrix values for debugging
                         std::cout << "Processing aimDirection matrix for " << remote_username << std::endl;
                         
+                        bool matrix_valid = true;
+                        float max_rotation_value = 0.0f;
+                        
                         for (int i = 0; i < 4; ++i) {
                             if (!content["aimDirection"][i].is_array() || content["aimDirection"][i].size() != 4) {
                                 std::cerr << "UPDATE: aimDirection matrix row " << i << " invalid" << std::endl;
@@ -239,12 +244,43 @@ void scene_structure::setupWebSocketHandlers() {
                                         std::cerr << "UPDATE: aimDirection matrix element [" << i << "][" << j << "] is not finite: " << value << std::endl;
                                         return;
                                     }
+                                    
+                                    // Check for invalid transformation matrix values
+                                    // Rotation part (top-left 3x3) should have values roughly between -1 and 1
+                                    if (i < 3 && j < 3) {
+                                        max_rotation_value = std::max(max_rotation_value, std::abs(value));
+                                        if (std::abs(value) > 2.0f) {
+                                            std::cerr << "UPDATE: Invalid rotation matrix value [" << i << "][" << j << "]: " << value << std::endl;
+                                            matrix_valid = false;
+                                        }
+                                    }
+                                    // Translation part (4th column, first 3 rows) should be reasonable
+                                    else if (j == 3 && i < 3) {
+                                        if (std::abs(value) > 100.0f) {
+                                            std::cerr << "UPDATE: Unreasonable translation value [" << i << "][" << j << "]: " << value << std::endl;
+                                            matrix_valid = false;
+                                        }
+                                    }
+                                    // Bottom row should be [0,0,0,1]
+                                    else if (i == 3) {
+                                        if ((j < 3 && std::abs(value) > 0.01f) || (j == 3 && std::abs(value - 1.0f) > 0.01f)) {
+                                            std::cerr << "UPDATE: Invalid homogeneous coordinate [" << i << "][" << j << "]: " << value << std::endl;
+                                            matrix_valid = false;
+                                        }
+                                    }
+                                    
                                     remote_aim_matrix(i, j) = value;
                                 } else {
                                     std::cerr << "UPDATE: aimDirection matrix element [" << i << "][" << j << "] is not a number" << std::endl;
                                     return;
                                 }
                             }
+                        }
+                        
+                        // If matrix is invalid, use identity matrix instead
+                        if (!matrix_valid) {
+                            std::cerr << "UPDATE: aimDirection matrix is invalid, using identity matrix instead" << std::endl;
+                            remote_aim_matrix = cgp::mat4::build_identity();
                         }
                         
                         // Check for very small matrix values that might indicate problems
@@ -280,33 +316,67 @@ void scene_structure::setupWebSocketHandlers() {
                 auto it = remote_players.find(remote_username);
                 if (it == remote_players.end()) {
                     try {
-                        // Create new remote player
+                        std::cout << "Creating new remote player: " << remote_username << std::endl;
+                        
+                        // Create new remote player with very defensive approach
                         RemotePlayer new_player;
                         
-                        // Initialize with the same pre-rotated mesh as the local player
-                        cgp::mesh remote_player_mesh_data = cgp::mesh_load_file_obj("assets/man.obj");
-                        remote_player_mesh_data.centered();
-                        remote_player_mesh_data.scale(0.16f);
-                        remote_player_mesh_data.rotate({1, 0, 0}, cgp::Pi / 2.0f); 
-                        remote_player_mesh_data.rotate({0, 0, 1}, cgp::Pi); // Face forward
+                        // Try to initialize with the mesh, but if it fails, skip this update
+                        try {
+                            cgp::mesh remote_player_mesh_data = cgp::mesh_load_file_obj("assets/man.obj");
+                            if (remote_player_mesh_data.position.size() == 0) {
+                                std::cerr << "Error: Loaded mesh is empty for remote player " << remote_username << std::endl;
+                                return;
+                            }
+                            
+                            remote_player_mesh_data.centered();
+                            remote_player_mesh_data.scale(0.16f);
+                            remote_player_mesh_data.rotate({1, 0, 0}, cgp::Pi / 2.0f); 
+                            remote_player_mesh_data.rotate({0, 0, 1}, cgp::Pi); // Face forward
+                            
+                            std::cout << "About to store mesh data for: " << remote_username << std::endl;
+                            std::cout << "Mesh has " << remote_player_mesh_data.position.size() << " vertices" << std::endl;
+                            
+                            // Instead of initializing on GPU immediately, store the mesh data
+                            // GPU initialization will happen later during the render loop
+                            new_player.store_mesh_data(remote_player_mesh_data);
+                            std::cout << "Mesh data stored for: " << remote_username << std::endl;
+                            
+                            std::cout << "About to set scaling for: " << remote_username << std::endl;
+                            new_player.model_drawable.model.set_scaling(0.6f); // Same scaling as local player
+                            std::cout << "Scaling set for: " << remote_username << std::endl;
+                            
+                            std::cout << "Successfully initialized mesh for remote player: " << remote_username << std::endl;
+                        } catch (const std::exception& mesh_e) {
+                            std::cerr << "Error initializing mesh for remote player " << remote_username << ": " << mesh_e.what() << std::endl;
+                            return; // Skip this update if mesh loading fails
+                        }
                         
-                        new_player.initialize_data_on_gpu(remote_player_mesh_data);
-                        new_player.model_drawable.model.set_scaling(0.6f); // Same scaling as local player
-                        
-                        // Insert the new player
+                        // Insert the new player only if mesh initialization succeeded
                         remote_players[remote_username] = std::move(new_player);
-                        std::cout << "Created new remote player: " << remote_username << std::endl;
+                        std::cout << "Successfully created new remote player: " << remote_username << std::endl;
+                        
                     } catch (const std::exception& e) {
                         std::cerr << "Error creating remote player " << remote_username << ": " << e.what() << std::endl;
                         return;
                     }
                 }
                 
-                // Update player state safely
-                try {
-                    remote_players[remote_username].update_state(remote_position, remote_aim_matrix);
-                } catch (const std::exception& e) {
-                    std::cerr << "Error updating state for remote player " << remote_username << ": " << e.what() << std::endl;
+                // Update player state safely - only if the player exists
+                auto player_it = remote_players.find(remote_username);
+                if (player_it != remote_players.end()) {
+                    try {
+                        std::cout << "Updating state for remote player: " << remote_username << std::endl;
+                        player_it->second.update_state(remote_position, remote_aim_matrix);
+                        std::cout << "Successfully updated state for remote player: " << remote_username << std::endl;
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error updating state for remote player " << remote_username << ": " << e.what() << std::endl;
+                        // Remove the problematic player to avoid future crashes
+                        std::cerr << "Removing problematic remote player: " << remote_username << std::endl;
+                        remote_players.erase(player_it);
+                    }
+                } else {
+                    std::cerr << "Error: Remote player " << remote_username << " not found after creation attempt" << std::endl;
                 }
 
             } catch (const std::exception& e) {
