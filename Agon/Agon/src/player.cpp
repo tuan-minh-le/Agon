@@ -226,7 +226,7 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
 
     // Update player model's visual properties
     player_visual_model.model.translation = position;
-    player_visual_model.model.translation.z -= 0.5f; // User added offset
+    player_visual_model.model.translation.z -= 0.8f; // Adjusted to lower player more
 
     // Model should rotate with camera's yaw, around the Z-axis.
     // Assumes camera.camera_model.axis_of_rotation is {0,0,1} due to set_rotation_axis_z()
