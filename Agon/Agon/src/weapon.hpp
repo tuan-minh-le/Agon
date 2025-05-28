@@ -59,9 +59,9 @@ public:
     void addAmmo(int amount);
 
 private:
-    // Helper function for raycasting hit detection
+    // Helper function for raycasting hit detection with height-based damage
     bool checkPlayerHit(const cgp::vec3& ray_origin, const cgp::vec3& ray_direction, 
-                       const RemotePlayer& target, float& hit_distance) const;
+                       const RemotePlayer& target, float& hit_distance, int& damage) const;
 };
 
 #endif // !WEAPON_HPP
