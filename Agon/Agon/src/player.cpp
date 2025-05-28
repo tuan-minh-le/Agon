@@ -2,6 +2,7 @@
 #include "environment.hpp" // Keep this include
 #include <algorithm> // For std::clamp
 #include <cmath> // For M_PI/cgp::Pi if not available directly
+#include <iostream> // For std::cout
 
 Player::Player()
     :movement_speed(0.f), height(0.f), position(0, 0, 0),
@@ -79,9 +80,15 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
     forward.z = 0;
     right.z = 0;
 
+    // Handle reload input
+    if (keyboard.is_pressed(GLFW_KEY_R)) {
+        weapon.reload();
+    }
+    
+    // Shooting is now handled in scene.cpp with hit detection
+    // Just update the shooting flag based on mouse input for networking
     if (mouse.click.left) {
-        weapon.shoot();
-        shooting_flag = true; // Set shooting flag
+        shooting_flag = true; // Set shooting flag for networking
     }
 
     if (keyboard.is_pressed(GLFW_KEY_R)) {
@@ -313,8 +320,17 @@ void Player::set_apartment(Apartment* apartment_ptr)
     apartment = apartment_ptr;
 }
 
-const Weapon& Player::getWeapon(){
+const Weapon& Player::getWeapon() const {
     return weapon;
+}
+
+Weapon& Player::getWeaponMutable() {
+    return weapon;
+}
+
+HitInfo Player::performShoot(const std::map<std::string, RemotePlayer>& remote_players) {
+    shooting_flag = true; // Set shooting flag for networking
+    return weapon.shootWithHitDetection(*this, remote_players);
 }
 
 void Player::draw_model(const cgp::environment_generic_structure& environment) {
@@ -327,4 +343,31 @@ void Player::draw_model(const cgp::environment_generic_structure& environment) {
     // player_visual_model.model.rotation = yaw_rotation * initial_model_rotation;
 
     draw(player_visual_model, environment);
+}
+
+// Health management methods
+void Player::updateHealth(int healthChange) {
+    hp += healthChange;
+    
+    // Clamp health to valid range (0 to 100)
+    if (hp > 100) {
+        hp = 100;
+    } else if (hp < 0) {
+        hp = 0;
+    }
+    
+    std::cout << "Player health updated: " << hp << " HP (change: " << healthChange << ")" << std::endl;
+}
+
+void Player::setHP(int newHP) {
+    // Clamp to valid range
+    if (newHP > 100) {
+        hp = 100;
+    } else if (newHP < 0) {
+        hp = 0;
+    } else {
+        hp = newHP;
+    }
+    
+    std::cout << "Player health set to: " << hp << " HP" << std::endl;
 }

@@ -163,7 +163,31 @@ void scene_structure::setupWebSocketHandlers() {
                     return;
                 }
 
-                // Check if the message has the expected structure
+                // Check for direct health update messages (no username field)
+                if (msg_json.contains("content") && msg_json["content"].is_object() && 
+                    msg_json["content"].contains("health") && !msg_json.contains("username")) {
+                    try {
+                        int healthChange = msg_json["content"]["health"].get<int>();
+                        std::cout << "Received direct health update: " << healthChange << std::endl;
+                        
+                        // Apply health change to local player
+                        player.updateHealth(healthChange);
+                        
+                        // Show health notification
+                        if (healthChange < 0) {
+                            std::cout << "Player took " << (-healthChange) << " damage! HP: " << player.getHP() << std::endl;
+                        } else if (healthChange > 0) {
+                            std::cout << "Player healed " << healthChange << " HP! HP: " << player.getHP() << std::endl;
+                        }
+                        
+                        return; // Health updates don't need further processing
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error processing direct health update: " << e.what() << std::endl;
+                        return;
+                    }
+                }
+
+                // Check if the message has the expected structure for position updates
                 std::string remote_username;
                 const nlohmann::json* content_ptr = nullptr;
                 
@@ -191,6 +215,30 @@ void scene_structure::setupWebSocketHandlers() {
                     return;
                 }
                 
+                // Check if this is a health update message (for local player)
+                if (content_ptr && content_ptr->contains("health")) {
+                    // This is a health update - should be processed for local player
+                    try {
+                        int healthChange = (*content_ptr)["health"].get<int>();
+                        std::cout << "Received health update: " << healthChange << std::endl;
+                        
+                        // Apply health change to local player
+                        player.updateHealth(healthChange);
+                        
+                        // Show health notification if needed
+                        if (healthChange < 0) {
+                            std::cout << "Player took " << (-healthChange) << " damage! HP: " << player.getHP() << std::endl;
+                        } else if (healthChange > 0) {
+                            std::cout << "Player healed " << healthChange << " HP! HP: " << player.getHP() << std::endl;
+                        }
+                        
+                        return; // Health updates don't need further processing
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error processing health update: " << e.what() << std::endl;
+                        return;
+                    }
+                }
+
                 // Ignore updates for the local player
                 std::cout << "DEBUG: remote_username='" << remote_username << "', this->username='" << this->username << "'" << std::endl;
                 if (remote_username.empty() || remote_username == this->username) {
@@ -693,6 +741,10 @@ void scene_structure::idle_frame() {
 
         if (update_timer >= 0.016f) { // ~60 fps
             player.update(update_timer, inputs.keyboard, inputs.mouse, environment.camera_view);
+            
+            // Handle player shooting with hit detection
+            handlePlayerShooting();
+            
             update_timer = 0;
 
             // Send player state update - only if connected and username is set
@@ -797,4 +849,47 @@ void scene_structure::cleanup() {
     WebSocketService::getInstance().disconnect();
     
     std::cout << "Scene cleanup complete" << std::endl;
+}
+
+void scene_structure::handlePlayerShooting() {
+    // Check if player is trying to shoot
+    if (inputs.mouse.click.left && player.getWeapon().canShoot()) {
+        // Perform shooting with hit detection using remote players
+        std::lock_guard<std::mutex> lock(remote_players_mutex);
+        HitInfo hit_result = player.performShoot(remote_players);
+        
+        // If we hit someone, send the hit information to the server
+        if (hit_result.hit) {
+            sendHitInfoToServer(hit_result);
+        }
+    }
+}
+
+void scene_structure::sendHitInfoToServer(const HitInfo& hit_info) {
+    if (!WebSocketService::getInstance().isConnected() || username.empty()) {
+        return;
+    }
+    
+    try {
+        nlohmann::json hit_message;
+        hit_message["type"] = "HIT";
+        hit_message["shooter"] = username;
+        hit_message["target"] = hit_info.target_player_id;
+        hit_message["damage"] = hit_info.damage;
+        hit_message["distance"] = hit_info.distance;
+        
+        // Include hit position for validation/effects
+        hit_message["hit_position"]["x"] = hit_info.hit_position.x;
+        hit_message["hit_position"]["y"] = hit_info.hit_position.y;
+        hit_message["hit_position"]["z"] = hit_info.hit_position.z;
+        
+        // Send the hit message
+        WebSocketService::getInstance().send(hit_message.dump());
+        
+        std::cout << "Hit confirmed: " << username << " hit " << hit_info.target_player_id 
+                  << " for " << hit_info.damage << " damage at distance " << hit_info.distance << std::endl;
+                  
+    } catch (const std::exception& e) {
+        std::cerr << "Error sending hit info to server: " << e.what() << std::endl;
+    }
 }
