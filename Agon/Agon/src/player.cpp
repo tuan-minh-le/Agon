@@ -73,6 +73,7 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
     // Reset flags at the beginning of each update
     shooting_flag = false;
     moving_flag = false;
+    running_flag = false;
 
     forward = camera.camera_model.front();
     right = camera.camera_model.right();
@@ -126,6 +127,11 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
     // Calculate target velocity
     float target_speed = keyboard.shift ? max_velocity * 1.8f : max_velocity;
     cgp::vec3 target_velocity = desired_direction * target_speed;
+    
+    // Set running flag if moving and shift is pressed
+    if (moving_flag && keyboard.shift) {
+        running_flag = true;
+    }
 
     // Smoothly interpolate between current velocity and target velocity
     if (cgp::norm(desired_direction) > 0.01f) {
@@ -293,6 +299,10 @@ bool Player::isShooting() const {
 
 bool Player::isMoving() const {
     return moving_flag;
+}
+
+bool Player::isRunning() const {
+    return running_flag;
 }
 
 void Player::handle_mouse_move(cgp::vec2 const& mouse_position_current, cgp::vec2 const& mouse_position_previous, cgp::mat4& camera_view_matrix) {

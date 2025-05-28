@@ -57,6 +57,34 @@ include_directories(${OPENSSL_INCLUDE_DIR})
 find_package(assimp REQUIRED)
 include_directories(${assimp_INCLUDE_DIRS})
 
+# OpenAL is required for audio system
+if(APPLE)
+    # On macOS, find OpenAL using Homebrew paths
+    find_path(OPENAL_INCLUDE_DIR AL/al.h
+        PATHS /opt/homebrew/Cellar/openal-soft/1.24.3/include /opt/homebrew/include /usr/local/include)
+    find_library(OPENAL_LIBRARY openal
+        PATHS /opt/homebrew/Cellar/openal-soft/1.24.3/lib /opt/homebrew/lib /usr/local/lib)
+    
+    if(OPENAL_INCLUDE_DIR AND OPENAL_LIBRARY)
+        set(OPENAL_FOUND TRUE)
+        set(OPENAL_LIBRARIES ${OPENAL_LIBRARY})
+        set(OPENAL_INCLUDE_DIRS ${OPENAL_INCLUDE_DIR})
+        message(STATUS "Found OpenAL: ${OPENAL_LIBRARY}")
+        message(STATUS "OpenAL Include: ${OPENAL_INCLUDE_DIR}")
+    else()
+        message(FATAL_ERROR "OpenAL not found. Install with: brew install openal-soft")
+    endif()
+else()
+    # On Linux, use pkg-config
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(OPENAL REQUIRED openal)
+endif()
+
+include_directories(${OPENAL_INCLUDE_DIRS})
+if(OPENAL_LIBRARY_DIRS)
+    link_directories(${OPENAL_LIBRARY_DIRS})
+endif()
+
 include_directories(extern/nlohmann_json/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/extern)
 
@@ -114,7 +142,7 @@ endif()
 
 
 # Link options for Unix
-target_link_libraries(${executable_name} ${GLFW_LIBRARIES} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} assimp)
+target_link_libraries(${executable_name} ${GLFW_LIBRARIES} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} assimp ${OPENAL_LIBRARIES})
 if(UNIX)
    target_link_libraries(${executable_name} dl) #dlopen is required by Glad on Unix
 endif()

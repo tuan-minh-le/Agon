@@ -54,6 +54,7 @@ private:
     // State flags
     bool shooting_flag;
     bool moving_flag;
+    bool running_flag;
 
 public:
     // Default constructor
@@ -91,6 +92,7 @@ public:
     // New methods for state checking
     bool isShooting() const;
     bool isMoving() const;
+    bool isRunning() const;
 
 };
 
