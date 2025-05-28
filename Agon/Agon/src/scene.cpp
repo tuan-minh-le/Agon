@@ -167,18 +167,12 @@ void scene_structure::setupWebSocketHandlers() {
                 if (msg_json.contains("content") && msg_json["content"].is_object() && 
                     msg_json["content"].contains("health") && !msg_json.contains("username")) {
                     try {
-                        int healthChange = msg_json["content"]["health"].get<int>();
-                        std::cout << "Received direct health update: " << healthChange << std::endl;
+                        int healthValue = msg_json["content"]["health"].get<int>();
+                        std::cout << "Received direct health update: " << healthValue << std::endl;
                         
-                        // Apply health change to local player
-                        player.updateHealth(healthChange);
-                        
-                        // Show health notification
-                        if (healthChange < 0) {
-                            std::cout << "Player took " << (-healthChange) << " damage! HP: " << player.getHP() << std::endl;
-                        } else if (healthChange > 0) {
-                            std::cout << "Player healed " << healthChange << " HP! HP: " << player.getHP() << std::endl;
-                        }
+                        // Server sends absolute health value, set player HP directly
+                        player.setHP(healthValue);
+                        std::cout << "Player health set to: " << player.getHP() << " HP" << std::endl;
                         
                         return; // Health updates don't need further processing
                     } catch (const std::exception& e) {
@@ -219,18 +213,12 @@ void scene_structure::setupWebSocketHandlers() {
                 if (content_ptr && content_ptr->contains("health")) {
                     // This is a health update - should be processed for local player
                     try {
-                        int healthChange = (*content_ptr)["health"].get<int>();
-                        std::cout << "Received health update: " << healthChange << std::endl;
+                        int healthValue = (*content_ptr)["health"].get<int>();
+                        std::cout << "Received health update: " << healthValue << std::endl;
                         
-                        // Apply health change to local player
-                        player.updateHealth(healthChange);
-                        
-                        // Show health notification if needed
-                        if (healthChange < 0) {
-                            std::cout << "Player took " << (-healthChange) << " damage! HP: " << player.getHP() << std::endl;
-                        } else if (healthChange > 0) {
-                            std::cout << "Player healed " << healthChange << " HP! HP: " << player.getHP() << std::endl;
-                        }
+                        // Server sends absolute health value, set player HP directly
+                        player.setHP(healthValue);
+                        std::cout << "Player health set to: " << player.getHP() << " HP" << std::endl;
                         
                         return; // Health updates don't need further processing
                     } catch (const std::exception& e) {
