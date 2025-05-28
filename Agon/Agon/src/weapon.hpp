@@ -3,6 +3,20 @@
 
 #include <iostream>
 #include <chrono>
+#include "cgp/cgp.hpp"
+
+// Forward declarations
+struct RemotePlayer;
+class Player;
+
+// Structure to hold hit information
+struct HitInfo {
+    bool hit = false;
+    std::string target_player_id;
+    cgp::vec3 hit_position;
+    float distance;
+    int damage;
+};
 
 class Weapon {
 private:
@@ -31,6 +45,9 @@ public:
     void update(float dt);
     bool canShoot() const;
 
+    // New shooting system with hit detection
+    HitInfo shootWithHitDetection(const Player& shooter, const std::map<std::string, RemotePlayer>& remote_players);
+
     // Getters
     int getBulletCount() const;
     int getTotalAmmo() const;
@@ -40,6 +57,11 @@ public:
 
     // Ammo management
     void addAmmo(int amount);
+
+private:
+    // Helper function for raycasting hit detection
+    bool checkPlayerHit(const cgp::vec3& ray_origin, const cgp::vec3& ray_direction, 
+                       const RemotePlayer& target, float& hit_distance) const;
 };
 
 #endif // !WEAPON_HPP

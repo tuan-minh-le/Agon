@@ -53,6 +53,10 @@ link_directories(${Boost_LIBRARY_DIRS})
 find_package(OpenSSL REQUIRED)
 include_directories(${OPENSSL_INCLUDE_DIR})
 
+# Assimp is required for FBX loading
+find_package(assimp REQUIRED)
+include_directories(${assimp_INCLUDE_DIRS})
+
 include_directories(extern/nlohmann_json/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/extern)
 
@@ -110,7 +114,7 @@ endif()
 
 
 # Link options for Unix
-target_link_libraries(${executable_name} ${GLFW_LIBRARIES})
+target_link_libraries(${executable_name} ${GLFW_LIBRARIES} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} assimp)
 if(UNIX)
    target_link_libraries(${executable_name} dl) #dlopen is required by Glad on Unix
 endif()

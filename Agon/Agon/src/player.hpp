@@ -4,6 +4,12 @@
 
 #include "cgp/cgp.hpp"
 #include "apartment.hpp"
+#include <map>
+#include <string>
+
+// Forward declarations
+struct RemotePlayer;
+struct HitInfo;
 
 #include "weapon.hpp"
 
@@ -64,7 +70,12 @@ public:
 
     void set_apartment(Apartment* apartment_ptr);
     cgp::vec3 compute_push_direction(const cgp::vec3& pos);
-    const Weapon& getWeapon() ;
+    const Weapon& getWeapon() const;
+    Weapon& getWeaponMutable(); // Non-const version for shooting
+    
+    // Shooting system
+    HitInfo performShoot(const std::map<std::string, RemotePlayer>& remote_players);
+    
     // Model methods
     //void load_model(const std::string& model_path);
     //void draw(const cgp::environment_generic_structure& environment);
@@ -73,6 +84,10 @@ public:
     cgp::vec3 getPosition() const;
 
     int getHP() const {return hp;};
+    
+    // Health management
+    void updateHealth(int healthChange);
+    void setHP(int newHP);
 
     // New methods for state checking
     bool isShooting() const;
