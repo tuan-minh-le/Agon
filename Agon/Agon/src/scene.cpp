@@ -19,6 +19,21 @@ void scene_structure::initialize()
 
     fps_mode = true;
 
+    // Initialize audio system
+    if (audio_system.initialize()) {
+        std::cout << "Audio system initialized successfully" << std::endl;
+        
+        // Initialize footstep audio manager
+        footstep_manager = std::make_unique<FootstepAudioManager>(&audio_system);
+        if (footstep_manager->initialize("assets/walking.wav", "assets/running.wav")) {
+            std::cout << "Footstep audio manager initialized successfully" << std::endl;
+        } else {
+            std::cerr << "Failed to initialize footstep audio manager" << std::endl;
+        }
+    } else {
+        std::cerr << "Failed to initialize audio system" << std::endl;
+    }
+
     // Setup WebSocket message handlers
     setupWebSocketHandlers();
 
@@ -242,6 +257,10 @@ void scene_structure::setupWebSocketHandlers() {
 
                 cgp::vec3 remote_position(0.0f, 0.0f, 0.0f);
                 cgp::mat4 remote_aim_matrix = cgp::mat4::build_identity();
+                
+                // Extract movement states for footstep audio
+                bool remote_is_moving = content.value("isMoving", false);
+                bool remote_is_running = content.value("isRunning", false);
 
                 // Safely extract position with more robust validation
                 if (content.contains("position") && content["position"].is_object()) {
@@ -405,11 +424,32 @@ void scene_structure::setupWebSocketHandlers() {
                     try {
                         std::cout << "Updating state for remote player: " << remote_username << std::endl;
                         player_it->second.update_state(remote_position, remote_aim_matrix);
+                        
+                        // Update footstep audio for remote player
+                        if (footstep_manager) {
+                            // Use a fixed delta time for remote players since we don't have their actual dt
+                            float remote_dt = 0.016f; // ~60fps
+                            footstep_manager->update_remote_player_footsteps(
+                                remote_username, 
+                                remote_is_moving, 
+                                remote_is_running, 
+                                remote_position, 
+                                player.getPosition(),
+                                remote_dt
+                            );
+                        }
+                        
                         std::cout << "Successfully updated state for remote player: " << remote_username << std::endl;
                     } catch (const std::exception& e) {
                         std::cerr << "Error updating state for remote player " << remote_username << ": " << e.what() << std::endl;
                         // Remove the problematic player to avoid future crashes
                         std::cerr << "Removing problematic remote player: " << remote_username << std::endl;
+                        
+                        // Stop footstep audio for the removed player
+                        if (footstep_manager) {
+                            footstep_manager->stop_player_footsteps(remote_username);
+                        }
+                        
                         remote_players.erase(player_it);
                         remote_player_usernames.erase(
                             std::remove(remote_player_usernames.begin(), remote_player_usernames.end(), remote_username),
@@ -817,6 +857,21 @@ void scene_structure::idle_frame() {
         if (update_timer >= 0.016f) { // ~60 fps
             player.update(update_timer, inputs.keyboard, inputs.mouse, environment.camera_view);
             
+            // Update footstep audio for local player
+            if (footstep_manager) {
+                bool is_running = inputs.keyboard.shift;
+                footstep_manager->update_local_player_footsteps(player.isMoving(), is_running, update_timer);
+                
+                // Update audio system listener position to match player
+                audio_system.set_listener_position(player.getPosition());
+                cgp::vec3 forward = player.camera.camera_model.front();
+                cgp::vec3 up(0, 0, 1); // Z is up in this game
+                audio_system.set_listener_orientation(forward, up);
+                
+                // Update audio system (call every frame)
+                audio_system.update();
+            }
+            
             // Handle player shooting with hit detection
             handlePlayerShooting();
             
@@ -872,12 +927,14 @@ void scene_structure::idle_frame() {
                     // Player states (with safe method calls)
                     try {
                         content_data["isShooting"] = player.isShooting(); 
-                        content_data["isMoving"] = player.isMoving();   
+                        content_data["isMoving"] = player.isMoving();
+                        content_data["isRunning"] = player.isRunning();
                     } catch (const std::exception& e) {
                         std::cerr << "Error getting player states: " << e.what() << std::endl;
                         // Use default values
                         content_data["isShooting"] = false;
                         content_data["isMoving"] = false;
+                        content_data["isRunning"] = false;
                     }
                     
                     update_payload["content"] = content_data;
@@ -922,6 +979,13 @@ void scene_structure::toggle_fps_mode()
 void scene_structure::cleanup() {
     // We don't need to send a leave message, the server will detect the
     // disconnection and broadcast the notification automatically
+    
+    // Stop all audio before disconnecting
+    if (footstep_manager) {
+        footstep_manager->stop_all_footsteps();
+    }
+    audio_system.stop_all_sounds();
+    audio_system.shutdown();
     
     // Disconnect from WebSocket server
     WebSocketService::getInstance().disconnect();
