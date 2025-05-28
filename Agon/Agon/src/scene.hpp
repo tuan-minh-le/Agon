@@ -57,6 +57,7 @@ struct scene_structure : cgp::scene_inputs_generic {
     Spectator spectator;
     bool fps_mode = true; 
     bool spectator_mode = false;
+    bool follow_player_mode = false;
 
 
     std::string username;

@@ -528,6 +528,11 @@ void scene_structure::display_frame()
             glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             environment.camera_view = spectator.camera.camera_model.matrix_view();
         }
+        else if (follow_player_mode) {
+             glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            // Caméra exactement identique à celle du joueur
+            environment.camera_view = player.camera.camera_model.matrix_view();
+        }
         else {
             // Use orbit camera view
             environment.camera_view = camera_control.camera_model.matrix_view();
@@ -685,6 +690,9 @@ void scene_structure::mouse_move_event()
     else if (spectator_mode && !inputs.mouse.on_gui){
         spectator.handle_mouse_move(inputs.mouse.position.current, inputs.mouse.position.previous, environment.camera_view);
     }
+    else if (follow_player_mode) {
+        // Pas de contrôle souris en mode suivi
+    }
     else if (!inputs.keyboard.shift) {
         // Standard orbit camera control for non-FPS mode
         camera_control.action_mouse_move(environment.camera_view);
@@ -723,6 +731,13 @@ void scene_structure::keyboard_event()
         spectator.position = player.getPosition();
         spectator.camera.camera_model = player.camera.camera_model; // copie orientation complète
         std::cout << "Spectator mode activated" << std::endl;
+    }
+    else if (inputs.keyboard.is_pressed(GLFW_KEY_F4)) {
+        fps_mode = false;
+        spectator_mode = false;
+        follow_player_mode = true;
+        glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        std::cout << "Follow player mode activated" << std::endl;
     }
     else if (inputs.keyboard.is_pressed(GLFW_KEY_F3)) {
         fps_mode = false;
@@ -819,6 +834,9 @@ void scene_structure::idle_frame() {
     }
     else if (spectator_mode) {
         spectator.update(inputs.time_interval, inputs.keyboard, inputs.mouse, environment.camera_view);
+    }
+    else if (follow_player_mode) {
+        // Ne rien faire ici : position mise à jour dans display_frame
     }
     else {
         
