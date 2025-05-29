@@ -19,6 +19,21 @@ void scene_structure::initialize()
 
     fps_mode = true;
 
+    // Initialize audio system
+    if (audio_system.initialize()) {
+        std::cout << "Audio system initialized successfully" << std::endl;
+        
+        // Initialize footstep audio manager
+        footstep_manager = std::make_unique<FootstepAudioManager>(&audio_system);
+        if (footstep_manager->initialize("assets/walking.wav", "assets/running.wav")) {
+            std::cout << "Footstep audio manager initialized successfully" << std::endl;
+        } else {
+            std::cerr << "Failed to initialize footstep audio manager" << std::endl;
+        }
+    } else {
+        std::cerr << "Failed to initialize audio system" << std::endl;
+    }
+
     // Setup WebSocket message handlers
     setupWebSocketHandlers();
 
@@ -163,7 +178,25 @@ void scene_structure::setupWebSocketHandlers() {
                     return;
                 }
 
-                // Check if the message has the expected structure
+                // Check for direct health update messages (no username field)
+                if (msg_json.contains("content") && msg_json["content"].is_object() && 
+                    msg_json["content"].contains("health") && !msg_json.contains("username")) {
+                    try {
+                        int healthValue = msg_json["content"]["health"].get<int>();
+                        std::cout << "Received direct health update: " << healthValue << std::endl;
+                        
+                        // Server sends absolute health value, set player HP directly
+                        player.setHP(healthValue);
+                        std::cout << "Player health set to: " << player.getHP() << " HP" << std::endl;
+                        
+                        return; // Health updates don't need further processing
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error processing direct health update: " << e.what() << std::endl;
+                        return;
+                    }
+                }
+
+                // Check if the message has the expected structure for position updates
                 std::string remote_username;
                 const nlohmann::json* content_ptr = nullptr;
                 
@@ -191,6 +224,24 @@ void scene_structure::setupWebSocketHandlers() {
                     return;
                 }
                 
+                // Check if this is a health update message (for local player)
+                if (content_ptr && content_ptr->contains("health")) {
+                    // This is a health update - should be processed for local player
+                    try {
+                        int healthValue = (*content_ptr)["health"].get<int>();
+                        std::cout << "Received health update: " << healthValue << std::endl;
+                        
+                        // Server sends absolute health value, set player HP directly
+                        player.setHP(healthValue);
+                        std::cout << "Player health set to: " << player.getHP() << " HP" << std::endl;
+                        
+                        return; // Health updates don't need further processing
+                    } catch (const std::exception& e) {
+                        std::cerr << "Error processing health update: " << e.what() << std::endl;
+                        return;
+                    }
+                }
+
                 // Ignore updates for the local player
                 std::cout << "DEBUG: remote_username='" << remote_username << "', this->username='" << this->username << "'" << std::endl;
                 if (remote_username.empty() || remote_username == this->username) {
@@ -206,6 +257,10 @@ void scene_structure::setupWebSocketHandlers() {
 
                 cgp::vec3 remote_position(0.0f, 0.0f, 0.0f);
                 cgp::mat4 remote_aim_matrix = cgp::mat4::build_identity();
+                
+                // Extract movement states for footstep audio
+                bool remote_is_moving = content.value("isMoving", false);
+                bool remote_is_running = content.value("isRunning", false);
 
                 // Safely extract position with more robust validation
                 if (content.contains("position") && content["position"].is_object()) {
@@ -369,11 +424,32 @@ void scene_structure::setupWebSocketHandlers() {
                     try {
                         std::cout << "Updating state for remote player: " << remote_username << std::endl;
                         player_it->second.update_state(remote_position, remote_aim_matrix);
+                        
+                        // Update footstep audio for remote player
+                        if (footstep_manager) {
+                            // Use a fixed delta time for remote players since we don't have their actual dt
+                            float remote_dt = 0.016f; // ~60fps
+                            footstep_manager->update_remote_player_footsteps(
+                                remote_username, 
+                                remote_is_moving, 
+                                remote_is_running, 
+                                remote_position, 
+                                player.getPosition(),
+                                remote_dt
+                            );
+                        }
+                        
                         std::cout << "Successfully updated state for remote player: " << remote_username << std::endl;
                     } catch (const std::exception& e) {
                         std::cerr << "Error updating state for remote player " << remote_username << ": " << e.what() << std::endl;
                         // Remove the problematic player to avoid future crashes
                         std::cerr << "Removing problematic remote player: " << remote_username << std::endl;
+                        
+                        // Stop footstep audio for the removed player
+                        if (footstep_manager) {
+                            footstep_manager->stop_player_footsteps(remote_username);
+                        }
+                        
                         remote_players.erase(player_it);
                         remote_player_usernames.erase(
                             std::remove(remote_player_usernames.begin(), remote_player_usernames.end(), remote_username),
@@ -780,6 +856,25 @@ void scene_structure::idle_frame() {
 
         if (update_timer >= 0.016f) { // ~60 fps
             player.update(update_timer, inputs.keyboard, inputs.mouse, environment.camera_view);
+            
+            // Update footstep audio for local player
+            if (footstep_manager) {
+                bool is_running = inputs.keyboard.shift;
+                footstep_manager->update_local_player_footsteps(player.isMoving(), is_running, update_timer);
+                
+                // Update audio system listener position to match player
+                audio_system.set_listener_position(player.getPosition());
+                cgp::vec3 forward = player.camera.camera_model.front();
+                cgp::vec3 up(0, 0, 1); // Z is up in this game
+                audio_system.set_listener_orientation(forward, up);
+                
+                // Update audio system (call every frame)
+                audio_system.update();
+            }
+            
+            // Handle player shooting with hit detection
+            handlePlayerShooting();
+            
             update_timer = 0;
 
             // Send player state update - only if connected and username is set
@@ -832,12 +927,14 @@ void scene_structure::idle_frame() {
                     // Player states (with safe method calls)
                     try {
                         content_data["isShooting"] = player.isShooting(); 
-                        content_data["isMoving"] = player.isMoving();   
+                        content_data["isMoving"] = player.isMoving();
+                        content_data["isRunning"] = player.isRunning();
                     } catch (const std::exception& e) {
                         std::cerr << "Error getting player states: " << e.what() << std::endl;
                         // Use default values
                         content_data["isShooting"] = false;
                         content_data["isMoving"] = false;
+                        content_data["isRunning"] = false;
                     }
                     
                     update_payload["content"] = content_data;
@@ -883,8 +980,58 @@ void scene_structure::cleanup() {
     // We don't need to send a leave message, the server will detect the
     // disconnection and broadcast the notification automatically
     
+    // Stop all audio before disconnecting
+    if (footstep_manager) {
+        footstep_manager->stop_all_footsteps();
+    }
+    audio_system.stop_all_sounds();
+    audio_system.shutdown();
+    
     // Disconnect from WebSocket server
     WebSocketService::getInstance().disconnect();
     
     std::cout << "Scene cleanup complete" << std::endl;
+}
+
+void scene_structure::handlePlayerShooting() {
+    // Check if player is trying to shoot
+    if (inputs.mouse.click.left && player.getWeapon().canShoot()) {
+        // Perform shooting with hit detection using remote players
+        std::lock_guard<std::mutex> lock(remote_players_mutex);
+        HitInfo hit_result = player.performShoot(remote_players);
+        
+        // If we hit someone, send the hit information to the server
+        if (hit_result.hit) {
+            sendHitInfoToServer(hit_result);
+        }
+    }
+}
+
+void scene_structure::sendHitInfoToServer(const HitInfo& hit_info) {
+    if (!WebSocketService::getInstance().isConnected() || username.empty()) {
+        return;
+    }
+    
+    try {
+        nlohmann::json hit_message;
+        hit_message["type"] = "HIT";
+        hit_message["shooter"] = username;
+        hit_message["target"] = hit_info.target_player_id;
+        hit_message["damage"] = hit_info.damage;
+        hit_message["distance"] = hit_info.distance;
+        
+        // Include hit position for validation/effects
+        hit_message["hit_position"]["x"] = hit_info.hit_position.x;
+        hit_message["hit_position"]["y"] = hit_info.hit_position.y;
+        hit_message["hit_position"]["z"] = hit_info.hit_position.z;
+        
+        // Send the hit message
+        WebSocketService::getInstance().send(hit_message.dump());
+        
+        std::cout << "Hit confirmed: " << username << " hit " << hit_info.target_player_id 
+                  << " for " << hit_info.damage << " damage at distance " << hit_info.distance << std::endl;
+                  
+    } catch (const std::exception& e) {
+        std::cerr << "Error sending hit info to server: " << e.what() << std::endl;
+    }
 }

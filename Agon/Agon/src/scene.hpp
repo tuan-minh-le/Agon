@@ -7,10 +7,12 @@
 #include "login/login_ui.hpp"
 #include "login/websocket_service.hpp"
 #include "spectator.hpp"
+#include "audio_system.hpp"
 #include <string>
 #include <vector>
 #include <deque>
 #include <mutex>
+#include <memory>
 #include <nlohmann/json.hpp>
 #include <map> // Required for std::map
 #include "remote_player.hpp" // Include the new RemotePlayer header
@@ -72,6 +74,10 @@ struct scene_structure : cgp::scene_inputs_generic {
     // Apartment
     Apartment apartment;
 
+    // Audio system for footsteps and other sounds
+    AudioSystem audio_system;
+    std::unique_ptr<FootstepAudioManager> footstep_manager;
+
     // Store previous rotation for model
     float previous_x_rotation;
     float previous_y_rotation;
@@ -99,6 +105,10 @@ struct scene_structure : cgp::scene_inputs_generic {
     
     std::vector<std::string> remote_player_usernames;
     int current_followed_index = -1;
+
+    // Shooting system
+    void handlePlayerShooting();
+    void sendHitInfoToServer(const HitInfo& hit_info);
 
     // Core functions
     void initialize();    // Standard initialization to be called before the animation loop
