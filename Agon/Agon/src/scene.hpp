@@ -59,6 +59,8 @@ struct scene_structure : cgp::scene_inputs_generic {
     bool spectator_mode = false;
     bool follow_player_mode = false;
 
+    bool death_pause = false;
+    float death_timer = 0.0f;
 
     std::string username;
 
@@ -94,6 +96,9 @@ struct scene_structure : cgp::scene_inputs_generic {
     // Storage for remote players
     std::map<std::string, RemotePlayer> remote_players;
     std::mutex remote_players_mutex; // For thread safety when accessing remote_players
+    
+    std::vector<std::string> remote_player_usernames;
+    int current_followed_index = -1;
 
     // Core functions
     void initialize();    // Standard initialization to be called before the animation loop

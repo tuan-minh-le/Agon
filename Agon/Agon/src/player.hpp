@@ -15,6 +15,7 @@ private:
     float height;
     cgp::vec3 position;
     float collision_radius;
+    bool is_dead;
 
     Weapon weapon;
 
@@ -77,6 +78,9 @@ public:
     bool isShooting() const;
     bool isMoving() const;
 
+    void die();
+    void respawn();
+    bool isDead() const;
 };
 
 #endif // !1
