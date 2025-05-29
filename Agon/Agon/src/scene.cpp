@@ -354,6 +354,7 @@ void scene_structure::setupWebSocketHandlers() {
                         
                         // Insert the new player only if mesh initialization succeeded
                         remote_players[remote_username] = std::move(new_player);
+                        remote_player_usernames.push_back(remote_username);
                         std::cout << "Successfully created new remote player: " << remote_username << std::endl;
                         
                     } catch (const std::exception& e) {
@@ -374,6 +375,10 @@ void scene_structure::setupWebSocketHandlers() {
                         // Remove the problematic player to avoid future crashes
                         std::cerr << "Removing problematic remote player: " << remote_username << std::endl;
                         remote_players.erase(player_it);
+                        remote_player_usernames.erase(
+                            std::remove(remote_player_usernames.begin(), remote_player_usernames.end(), remote_username),
+                            remote_player_usernames.end()
+                        );
                     }
                 } else {
                     std::cerr << "Error: Remote player " << remote_username << " not found after creation attempt" << std::endl;
@@ -415,6 +420,9 @@ void scene_structure::sendChatMessage(const std::string& message) {
         while (chat_messages.size() > MAX_CHAT_MESSAGES) {
             chat_messages.pop_front();
         }
+    }
+    if (follow_player_mode && current_followed_index >= 0 && current_followed_index < remote_player_usernames.size()) {
+        ImGui::Text("Following player (1st person): %s", remote_player_usernames[current_followed_index].c_str());
     }
 }
 
@@ -481,10 +489,27 @@ void scene_structure::display_frame()
             environment.camera_view = spectator.camera.camera_model.matrix_view();
         }
         else if (follow_player_mode) {
-             glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-            // Caméra exactement identique à celle du joueur
-            environment.camera_view = player.camera.camera_model.matrix_view();
+            glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+            std::lock_guard<std::mutex> lock(remote_players_mutex);
+
+            if (!remote_player_usernames.empty() && current_followed_index >= 0 && current_followed_index < static_cast<int>(remote_player_usernames.size())) {
+                const std::string& target_username = remote_player_usernames[current_followed_index];
+                auto it = remote_players.find(target_username);
+                if (it != remote_players.end()) {
+                    const RemotePlayer& target = it->second;
+
+                    // Position caméra = position du joueur + ajustement vertical
+                    spectator.camera.camera_model.position_camera = target.position + cgp::vec3(0, 0, 1.6f); // hauteur des yeux
+
+                    // Orientation caméra = même orientation que le joueur (extrait de target.orientation)
+                    cgp::mat3 R = target.orientation.matrix();
+                    spectator.camera.camera_model.look_at(spectator.camera.camera_model.position_camera, target.position);
+                    environment.camera_view = spectator.camera.camera_model.matrix_view();
+                }
+            }
         }
+
         else {
             // Use orbit camera view
             environment.camera_view = camera_control.camera_model.matrix_view();
@@ -697,10 +722,57 @@ void scene_structure::keyboard_event()
         glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         std::cout << "Debug camera activated" << std::endl;
     }
+    if (follow_player_mode && !remote_player_usernames.empty()) {
+        if (inputs.keyboard.last_action.key == GLFW_KEY_RIGHT && inputs.keyboard.last_action.action == GLFW_PRESS) {
+            current_followed_index = (current_followed_index + 1) % remote_player_usernames.size();
+            std::cout << "Now following: " << remote_player_usernames[current_followed_index] << std::endl;
+        } 
+        else if (inputs.keyboard.last_action.key == GLFW_KEY_LEFT && inputs.keyboard.last_action.action == GLFW_PRESS) {
+            current_followed_index = (current_followed_index - 1 + remote_player_usernames.size()) % remote_player_usernames.size();
+            std::cout << "Now following: " << remote_player_usernames[current_followed_index] << std::endl;
+        }
+    }
+    if (inputs.keyboard.last_action.key == GLFW_KEY_F9 && inputs.keyboard.last_action.action == GLFW_PRESS) {
+        player.die();
+        death_pause = true;
+        death_timer = 0.0f;
+        float DEATH_DURATION = 3.0f; // secondes
+
+        // Active automatiquement le mode spectateur libre
+        fps_mode = false;
+        spectator_mode = true;
+        follow_player_mode = false;
+
+        // Aligne la caméra spectateur sur celle du joueur
+        spectator.position = player.getPosition();
+        spectator.camera.camera_model = player.camera.camera_model;
+
+        std::cout << "Player died. Spectator mode activated." << std::endl;
+    }
+    if (inputs.keyboard.last_action.key == GLFW_KEY_F10 && inputs.keyboard.last_action.action == GLFW_PRESS) {
+        player.respawn();
+        fps_mode = true;
+        spectator_mode = false;
+        follow_player_mode = false;
+        death_pause = false; // Très important si tu avais bloqué le reste de l'update
+
+        glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    }
+
+
 }
 
 
 void scene_structure::idle_frame() {
+    if (death_pause) {
+        death_timer += inputs.time_interval;
+        // Bloque les mouvements et la caméra pendant la pause de mort
+        if (death_timer < 1.5f) {
+            return; // On ne fait rien pendant la pause
+        } else {
+            death_pause = false; // Fin de la pause
+        }
+    }
     if (fps_mode) {
         // Limit update frequency for player movement
         static float update_timer = 0;

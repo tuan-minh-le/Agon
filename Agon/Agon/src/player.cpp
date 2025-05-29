@@ -4,7 +4,7 @@
 #include <cmath> // For M_PI/cgp::Pi if not available directly
 
 Player::Player()
-    :movement_speed(0.f), height(0.f), position(0, 0, 0),
+    :movement_speed(0.f), height(0.f), position(0, 0, 0),is_dead(false),
     velocity(0, 0, 0), acceleration(15.0f), deceleration(10.0f), max_velocity(6.0f),
     current_pitch(0.0f), max_pitch_up(85.0f), max_pitch_down(-85.0f), isGrounded(true), collision_radius(0.f),
     shooting_flag(false), moving_flag(false) { // Initialize new flags
@@ -64,6 +64,8 @@ void Player::set_initial_model_properties(const cgp::mesh& base_mesh_data, const
 }
 
 void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, const cgp::inputs_mouse_parameters& mouse, cgp::mat4& camera_view_matrix) {
+    if (is_dead) return; // Bloque toute mise à jour si le joueur est mort
+
     static cgp::vec3 forward;
     static cgp::vec3 right;
     static cgp::vec3 desired_direction(0, 0, 0);
@@ -327,4 +329,23 @@ void Player::draw_model(const cgp::environment_generic_structure& environment) {
     // player_visual_model.model.rotation = yaw_rotation * initial_model_rotation;
 
     draw(player_visual_model, environment);
+}
+
+void Player::die() {
+    is_dead = true;
+    hp = 0;
+    std::cout << "Player died." << std::endl;
+}
+
+void Player::respawn() {
+    is_dead = false;
+    hp = 100;
+    position = cgp::vec3(-3.f, -3.f, height); // Position initiale
+    velocity = cgp::vec3(0, 0, 0);
+    verticalVelocity = 0.0f;
+    std::cout << "Player respawned." << std::endl;
+}
+
+bool Player::isDead() const {
+    return is_dead;
 }
