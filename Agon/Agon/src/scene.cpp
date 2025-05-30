@@ -39,7 +39,7 @@ void scene_structure::initialize()
 
     apartment.initialize();
 
-    player.initialise(inputs, window);
+    player.initialise(inputs, window, &audio_system);
     player.set_apartment(&apartment);
 
     spectator.initialise(inputs, window);

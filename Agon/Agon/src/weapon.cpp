@@ -3,15 +3,16 @@
 #include <thread>
 #include "player.hpp"
 #include "remote_player.hpp"
+#include "audio_system.hpp"
 #include <map>
 
 Weapon::Weapon()
     : currentMag(0), maxBullet(0), fireRate(0.f), reloadTime(0.f), reloading(false),
-    lastShotTime(0), totalAmmo(0), bulletDamage(0)
+    lastShotTime(0), totalAmmo(0), bulletDamage(0), audio_system(nullptr)
 {
 }
 
-void Weapon::initialize()
+void Weapon::initialize(AudioSystem* audio_sys)
 {
     currentMag = 30;
     maxBullet = 30;
@@ -21,11 +22,19 @@ void Weapon::initialize()
     reloading = false;
     lastShotTime = 0;
     bulletDamage = 20; // Default damage per bullet
+    audio_system = audio_sys;
 
     // Initialize timer
     lastShotTime = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now().time_since_epoch()
     ).count();
+    
+    // Load gunshot sound if audio system is available
+    if (audio_system) {
+        if (!audio_system->load_audio_clip("gunshot", "assets/gunshot.wav")) {
+            std::cerr << "Failed to load gunshot sound" << std::endl;
+        }
+    }
 }
 
 void Weapon::reload()
@@ -95,6 +104,11 @@ void Weapon::shoot()
             std::chrono::steady_clock::now().time_since_epoch()
         ).count();
 
+        // Play gunshot sound
+        if (audio_system) {
+            audio_system->play_sound_2d("gunshot", 0.8f, false);
+        }
+
         // Shooting logic 
         std::cout << "Shot! Ammo remaining: " << currentMag << std::endl;
 
@@ -158,6 +172,11 @@ HitInfo Weapon::shootWithHitDetection(const Player& shooter, const std::map<std:
     lastShotTime = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now().time_since_epoch()
     ).count();
+    
+    // Play gunshot sound
+    if (audio_system) {
+        audio_system->play_sound_2d("gunshot", 0.8f, false);
+    }
     
     // Get shooter's camera information for raycasting
     cgp::vec3 ray_origin = shooter.camera.camera_model.position();

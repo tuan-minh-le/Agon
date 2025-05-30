@@ -10,6 +10,7 @@
 // Forward declarations
 struct RemotePlayer;
 struct HitInfo;
+class AudioSystem;
 
 #include "weapon.hpp"
 
@@ -64,7 +65,7 @@ public:
     //Camera
     cgp::camera_controller_first_person_euler camera;
 
-    void initialise(cgp::input_devices& inputs, cgp::window_structure& window);
+    void initialise(cgp::input_devices& inputs, cgp::window_structure& window, AudioSystem* audio_sys = nullptr);
     void set_initial_model_properties(const cgp::mesh& base_mesh_data, const cgp::rotation_transform& initial_rotation_transform); // New method
     void update(float dt, const cgp::inputs_keyboard_parameters& keyboard, const cgp::inputs_mouse_parameters& mouse, cgp::mat4& camera_view_matrix);
     void handle_mouse_move(cgp::vec2 const& mouse_position_current, cgp::vec2 const& mouse_position_previous, cgp::mat4& camera_view_matrix);
