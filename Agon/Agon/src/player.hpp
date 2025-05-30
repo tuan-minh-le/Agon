@@ -95,6 +95,7 @@ public:
     bool isShooting() const;
     bool isMoving() const;
     bool isRunning() const;
+    bool getGrounded() const;
 
     void die();
     void respawn();

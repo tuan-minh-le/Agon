@@ -7,7 +7,7 @@
 using namespace cgp;
 
 Apartment::Apartment()
-    : apartment_width(10.0f), apartment_length(12.0f), room_height(2.8f)
+    : apartment_width(10.0f), apartment_length(12.0f), room_height(4.0f)
 {
 }
 

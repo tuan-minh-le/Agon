@@ -402,3 +402,7 @@ void Player::setHP(int newHP) {
     
     std::cout << "Player health set to: " << hp << " HP" << std::endl;
 }
+
+bool Player::getGrounded() const {
+    return isGrounded;
+}
