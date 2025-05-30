@@ -8,6 +8,7 @@
 // Forward declarations
 struct RemotePlayer;
 class Player;
+class AudioSystem;
 
 // Structure to hold hit information
 struct HitInfo {
@@ -30,11 +31,14 @@ private:
     // Time tracking for shooting and reloading
     int lastShotTime;
     int reloadStartTime;
+    
+    // Audio system reference for gunshot sounds
+    AudioSystem* audio_system;
 
 public:
     Weapon();
 
-    void initialize();
+    void initialize(AudioSystem* audio_sys = nullptr);
 
     float fireRate;     // Time between shots in seconds
     float reloadTime;   // Time to reload in seconds

@@ -11,7 +11,7 @@ Player::Player()
     shooting_flag(false), moving_flag(false) { // Initialize new flags
 }
 
-void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& window) {
+void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& window, AudioSystem* audio_sys) {
     hp = 100;
 
     movement_speed = 6.0f;
@@ -42,7 +42,7 @@ void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& windo
     // Enable cursor trapping for no-click rotation
     camera.is_cursor_trapped = true;
 
-    weapon.initialize();
+    weapon.initialize(audio_sys);
 
     // The player_visual_model will be initialized by set_initial_model_properties
     // using the base_player_mesh and initial_player_model_rotation from the scene.
