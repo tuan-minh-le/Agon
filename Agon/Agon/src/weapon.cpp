@@ -29,10 +29,13 @@ void Weapon::initialize(AudioSystem* audio_sys)
         std::chrono::steady_clock::now().time_since_epoch()
     ).count();
     
-    // Load gunshot sound if audio system is available
+    // Load gunshot and reload sounds if audio system is available
     if (audio_system) {
         if (!audio_system->load_audio_clip("gunshot", "assets/gunshot.wav")) {
             std::cerr << "Failed to load gunshot sound" << std::endl;
+        }
+        if (!audio_system->load_audio_clip("reload", "assets/reload.wav")) {
+            std::cerr << "Failed to load reload sound" << std::endl;
         }
     }
 }
@@ -47,6 +50,10 @@ void Weapon::reload()
             std::chrono::steady_clock::now().time_since_epoch()
         ).count();
 
+        // Play reload sound
+        if (audio_system) {
+            audio_system->play_sound_2d("reload", 0.7f);
+        }
     }
 }
 
