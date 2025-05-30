@@ -402,3 +402,7 @@ void Player::respawn() {
 bool Player::isDead() const {
     return is_dead;
 }
+
+bool Player::getGrounded() const {
+    return isGrounded;
+}

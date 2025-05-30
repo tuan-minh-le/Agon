@@ -860,7 +860,9 @@ void scene_structure::idle_frame() {
             // Update footstep audio for local player
             if (footstep_manager) {
                 bool is_running = inputs.keyboard.shift;
-                footstep_manager->update_local_player_footsteps(player.isMoving(), is_running, update_timer);
+                // Only play footstep sounds when player is grounded (not jumping/mid-air)
+                bool is_moving_and_grounded = player.isMoving() && player.getGrounded();
+                footstep_manager->update_local_player_footsteps(is_moving_and_grounded, is_running, update_timer);
                 
                 // Update audio system listener position to match player
                 audio_system.set_listener_position(player.getPosition());
