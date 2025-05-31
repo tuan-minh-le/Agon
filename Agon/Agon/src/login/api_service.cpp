@@ -10,7 +10,7 @@ APIService& APIService::getInstance() {
 }
 
 APIService::APIService() {
-    
+    // Register our message handler with the WebSocketService
     WebSocketService::getInstance().registerMessageHandler(
         [this](const std::string& message) {
             this->handleWebSocketMessage(message);
@@ -18,14 +18,14 @@ APIService::APIService() {
     );
 }
 
-
+// WebSocket message handling
 bool APIService::connectWebSocket(const std::string& roomId) {
     if (!isLoggedIn()) {
         std::cerr << "Cannot connect to WebSocket: not logged in" << std::endl;
         return false;
     }
     
-    std::string ws_url = "ws:
+    std::string ws_url = "ws://" + base_url.substr(7) + "/ws"; // Convert http:// to ws://
     return WebSocketService::getInstance().connect(ws_url, auth_token, roomId);
 }
 
@@ -66,17 +66,17 @@ void APIService::handleWebSocketMessage(const std::string& message) {
         }
 
         if (handler_to_call) {
-            
+            // If a specific handler is registered, call it
             if (type == WebSocketMessageType::CHAT && data.contains("content") && data.contains("username")) {
-                
+                // Optional: still log to console for debugging even if handler is called
                 std::cout << "[Debug] Chat message from " << data["username"].get<std::string>() << ": " 
                           << data["content"].get<std::string>() << std::endl;
             }
             handler_to_call(data);
         } else {
-            
+            // No handler was registered for this message type
             if (type == WebSocketMessageType::CHAT && data.contains("content") && data.contains("username")) {
-                
+                // Specific handling for CHAT messages when no UI handler is present
                 std::cout << "Chat message (console only) from " << data["username"].get<std::string>() << ": " 
                           << data["content"].get<std::string>() << std::endl;
                 std::cout << "Note: No UI handler registered for WebSocketMessageType::CHAT. "
@@ -94,7 +94,7 @@ void APIService::handleWebSocketMessage(const std::string& message) {
 }
 
 WebSocketMessageType APIService::getMessageType(const json& data) {
-    
+    // Determine the message type based on the "type" field
     try {
         if (data.contains("type")) {
             std::string type = data["type"];
@@ -210,7 +210,7 @@ bool APIService::getUserInfo(std::function<void(bool success, const std::string&
 
 bool APIService::login(const std::string& email, const std::string& password, bool rememberMe,
                        std::function<void(bool success, const std::string& message, const std::string& token)> callback) {
-    
+    // Create a new thread to avoid blocking the UI
     std::thread([=]() {
         try {
             for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -219,14 +219,14 @@ bool APIService::login(const std::string& email, const std::string& password, bo
                     std::this_thread::sleep_for(std::chrono::milliseconds(RETRY_DELAY_MS));
                 }
                 
-                
+                // Create HTTP client with proper timeouts
                 httplib::Client client(base_url);
-                client.set_connection_timeout(10); 
-                client.set_read_timeout(10);       
+                client.set_connection_timeout(10); // Increased timeout
+                client.set_read_timeout(10);       // Increased timeout
                 
                 std::cout << "Connecting to: " << base_url << "/auth/login" << std::endl;
                 
-                
+                // Prepare JSON payload
                 json payload = {
                     {"email", email},
                     {"passwd", password},
@@ -236,36 +236,36 @@ bool APIService::login(const std::string& email, const std::string& password, bo
                 std::string payload_str = payload.dump();
                 std::cout << "Sending payload: " << payload_str << std::endl;
                 
-                
+                // Create proper headers
                 httplib::Headers headers = {
                     {"Content-Type", "application/json"}
                 };
                 
-                
+                // Make POST request with explicit headers
                 auto res = client.Post("/api/auth/login", headers, payload_str, "application/json");
 
                 if (res) {
                     std::cout << "Response received: Status " << res->status << std::endl;
                     
                     if (res->status >= 200 && res->status < 300) {
-                        
+                        // Parse response
                         json response = json::parse(res->body);
                         std::cout << "Response body: " << res->body << std::endl;
                         
                         std::string token = response["token"];
                         
-                        
+                        // Store token
                         auth_token = token;
                         
-                        
+                        // Call callback
                         callback(true, "Login successful", token);
                         return true;
                     } else if (res->status >= 500 && attempt < MAX_RETRIES - 1) {
-                        
+                        // Server error, will retry
                         std::cout << "Server error: " << res->status << ", will retry..." << std::endl;
                         continue;
                     } else {
-                        
+                        // Handle error status
                         std::string message = "Server error: " + std::to_string(res->status);
                         try {
                             json response = json::parse(res->body);
@@ -281,16 +281,16 @@ bool APIService::login(const std::string& email, const std::string& password, bo
                         return true;
                     }
                 } else {
-                    
+                    // No response object - connection failed
                     auto err = res.error();
                     std::cout << "Connection error: " << httplib::to_string(err) << std::endl;
                     
-                    
+                    // Only retry for certain types of errors
                     if (attempt < MAX_RETRIES - 1) {
                         if (err == httplib::Error::Connection || 
                             err == httplib::Error::Read || 
                             err == httplib::Error::Write) {
-                            continue; 
+                            continue; // Retry for connection issues
                         }
                     }
                     
@@ -299,11 +299,11 @@ bool APIService::login(const std::string& email, const std::string& password, bo
                 }
             }
             
-            
+            // If we reach here, all retries failed
             callback(false, "Failed after " + std::to_string(MAX_RETRIES) + " attempts", "");
             
         } catch (const std::exception& e) {
-            
+            // Catch any exceptions
             std::cout << "Exception occurred: " << e.what() << std::endl;
             callback(false, std::string("Exception: ") + e.what(), "");
         }
