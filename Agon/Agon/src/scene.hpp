@@ -8,6 +8,7 @@
 #include "login/websocket_service.hpp"
 #include "spectator.hpp"
 #include "audio_system.hpp"
+#include "crosshair.hpp"
 #include <string>
 #include <vector>
 #include <deque>
@@ -60,6 +61,7 @@ struct scene_structure : cgp::scene_inputs_generic {
     bool fps_mode = true; 
     bool spectator_mode = false;
     bool follow_player_mode = false;
+    bool cursor_mode = false; // Track cursor mode for UI access
 
     bool death_pause = false;
     float death_timer = 0.0f;
@@ -77,6 +79,9 @@ struct scene_structure : cgp::scene_inputs_generic {
     // Audio system for footsteps and other sounds
     AudioSystem audio_system;
     std::unique_ptr<FootstepAudioManager> footstep_manager;
+
+    // Crosshair system
+    Crosshair crosshair;
 
     // Store previous rotation for model
     float previous_x_rotation;

@@ -46,8 +46,8 @@ void scene_structure::initialize()
     spectator.set_apartment(&apartment);
     // Initialize player model data
     cgp::mesh player_mesh_data = cgp::mesh_load_file_obj("assets/man.obj");
+    player_mesh_data.fill_empty_field(); // Fix mesh validation by generating missing normals and UVs
     player_mesh_data.centered();
-    player_mesh_data.scale(0.16f); // Set a base scale for the mesh data
     // Rotate the mesh to be upright. Assuming model is oriented along Y and needs to be pitched up.
     player_mesh_data.rotate({1, 0, 0}, cgp::Pi / 2.0f); 
     player_mesh_data.rotate({0, 0, 1}, cgp::Pi);
@@ -60,13 +60,16 @@ void scene_structure::initialize()
 
     // The mesh_obj and obj_man below are for a separate model, possibly for debugging or other scene elements.
     mesh_obj = mesh_load_file_obj("assets/man.obj");
-
+    mesh_obj.fill_empty_field(); // Fix mesh validation by generating missing normals and UVs
 
     mesh_obj.centered();
     mesh_obj.scale(0.16f);
 	mesh_obj.rotate({ 1, 0, 0 }, 90.0f * cgp::Pi / 180.0f);
 
     obj_man.initialize_data_on_gpu(mesh_obj);
+
+    // Initialize crosshair
+    crosshair.initialize();
 
 }
 
@@ -379,6 +382,7 @@ void scene_structure::setupWebSocketHandlers() {
                         // Try to initialize with the mesh, but if it fails, skip this update
                         try {
                             cgp::mesh remote_player_mesh_data = cgp::mesh_load_file_obj("assets/man.obj");
+                            remote_player_mesh_data.fill_empty_field(); // Fix mesh validation by generating missing normals and UVs
                             if (remote_player_mesh_data.position.size() == 0) {
                                 std::cerr << "Error: Loaded mesh is empty for remote player " << remote_username << std::endl;
                                 return;
@@ -555,18 +559,32 @@ void scene_structure::display_frame()
 
 
         // Update the camera view based on the current mode
-        if (fps_mode) {
+        // If in cursor mode, maintain current camera view and make sure cursor is visible
+        if (cursor_mode) {
+            glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            
+                // For macOS, ensure the cursor is visible by positioning it
+            static bool first_cursor_mode_frame = true;
+            if (first_cursor_mode_frame) {
+                glfwSetCursorPos(window.glfw_window, window.width/2, window.height/2);
+                first_cursor_mode_frame = false;
+            }
+        
+            // Do not update camera view to keep it fixed when in cursor mode
+            // environment.camera_view remains at its last value
+        }
+        // Not in cursor mode, apply normal camera logic
+        else if (fps_mode) {
             // Use player's camera view
-                glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             environment.camera_view = player.camera.camera_model.matrix_view();
         }
-        else if (spectator_mode){
+        else if (spectator_mode) {
             glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             environment.camera_view = spectator.camera.camera_model.matrix_view();
         }
         else if (follow_player_mode) {
             glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
             std::lock_guard<std::mutex> lock(remote_players_mutex);
 
             if (!remote_player_usernames.empty() && current_followed_index >= 0 && current_followed_index < static_cast<int>(remote_player_usernames.size())) {
@@ -579,13 +597,11 @@ void scene_structure::display_frame()
                     spectator.camera.camera_model.position_camera = target.position + cgp::vec3(0, 0, 1.6f); // hauteur des yeux
 
                     // Orientation caméra = même orientation que le joueur (extrait de target.orientation)
-                    cgp::mat3 R = target.orientation.matrix();
                     spectator.camera.camera_model.look_at(spectator.camera.camera_model.position_camera, target.position);
                     environment.camera_view = spectator.camera.camera_model.matrix_view();
                 }
             }
         }
-
         else {
             // Use orbit camera view
             environment.camera_view = camera_control.camera_model.matrix_view();
@@ -622,11 +638,29 @@ void scene_structure::display_frame()
         }
         else {
             draw(obj_man, environment);
-        }}
+        }
+
+        // Render crosshair in FPS mode (overlay on top of everything)
+        if (fps_mode) {
+            crosshair.draw_opengl(environment, window.width, window.height);
+        }
+    }
 }
 
 void scene_structure::display_gui()
 {
+    // Display cursor mode status
+    if (cursor_mode) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); // Green text
+        ImGui::Text("CURSOR MODE: ENABLED (Press ESC to toggle)");
+        ImGui::PopStyleColor();
+    } else {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f)); // Red text
+        ImGui::Text("CURSOR MODE: DISABLED (Press ESC to toggle)");
+        ImGui::PopStyleColor();
+    }
+    ImGui::Separator();
+
     ImGui::Text("HP: %d", player.getHP());
 
     ImGui::Text("x: ");
@@ -644,6 +678,11 @@ void scene_structure::display_gui()
     ImGui::Text("Username: ");
     ImGui::SameLine();
     ImGui::Text("%s",username.c_str());
+
+    // Crosshair settings
+    if (ImGui::CollapsingHeader("Crosshair Settings")) {
+        crosshair.display_gui();
+    }
 }
 
 void scene_structure::display_weapon_info() {
@@ -733,6 +772,11 @@ void scene_structure::display_chat(){
 
 void scene_structure::mouse_move_event()
 {
+    // Don't process mouse movement for camera control when cursor mode is enabled
+    if (cursor_mode) {
+        return;
+    }
+
     if (fps_mode) {
         // Only process mouse movement if not on GUI
         if (!inputs.mouse.on_gui) {
@@ -754,11 +798,36 @@ void scene_structure::mouse_move_event()
 
 void scene_structure::mouse_click_event()
 {
-	camera_control.action_mouse_click(environment.camera_view);
+    // Only process camera clicks if not in cursor mode
+    if (!cursor_mode) {
+        camera_control.action_mouse_click(environment.camera_view);
+    }
 }
 
 void scene_structure::keyboard_event()
 {
+    // ESC key toggles cursor mode for UI access
+    if (inputs.keyboard.last_action.key == GLFW_KEY_ESCAPE && inputs.keyboard.last_action.action == GLFW_PRESS) {
+        cursor_mode = !cursor_mode;
+        
+        if (cursor_mode) {
+            // Enable cursor for UI access and store current camera view to maintain it
+            glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            
+            // Force the cursor to appear (for macOS specifically)
+            #ifdef __APPLE__
+                // Reset cursor position to center of window to ensure it appears
+                glfwSetCursorPos(window.glfw_window, window.width/2, window.height/2);
+            #endif
+            
+            std::cout << "Cursor mode enabled - camera fixed, shooting disabled" << std::endl;
+        } else {
+            // Disable cursor for FPS/game mode
+            glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            std::cout << "Game mode enabled - cursor disabled, camera and shooting active" << std::endl;
+        }
+    }
+
     // Toggle chat with T key regardless of camera mode
     if (inputs.keyboard.last_action.key == GLFW_KEY_T && inputs.keyboard.last_action.action == GLFW_PRESS) {
         std::cout << "T key detected - Toggling chat" << std::endl;
@@ -773,12 +842,14 @@ void scene_structure::keyboard_event()
      if (inputs.keyboard.is_pressed(GLFW_KEY_F1)) {
         fps_mode = true;
         spectator_mode = false;
+        cursor_mode = false; // Reset cursor mode
         glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         std::cout << "FPS mode activated" << std::endl;
         }
     else if (inputs.keyboard.is_pressed(GLFW_KEY_F2)) {
         fps_mode = false;
         spectator_mode = true;
+        cursor_mode = false; // Reset cursor mode
         glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         // Copier la position du joueur FPS vers le spectateur
         spectator.position = player.getPosition();
@@ -789,12 +860,14 @@ void scene_structure::keyboard_event()
         fps_mode = false;
         spectator_mode = false;
         follow_player_mode = true;
+        cursor_mode = false; // Reset cursor mode
         glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         std::cout << "Follow player mode activated" << std::endl;
     }
     else if (inputs.keyboard.is_pressed(GLFW_KEY_F3)) {
         fps_mode = false;
         spectator_mode = false;
+        cursor_mode = false; // Reset cursor mode
         glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         std::cout << "Debug camera activated" << std::endl;
     }
@@ -812,7 +885,6 @@ void scene_structure::keyboard_event()
         player.die();
         death_pause = true;
         death_timer = 0.0f;
-        float DEATH_DURATION = 3.0f; // secondes
 
         // Active automatiquement le mode spectateur libre
         fps_mode = false;
@@ -855,7 +927,10 @@ void scene_structure::idle_frame() {
         update_timer += inputs.time_interval;
 
         if (update_timer >= 0.016f) { // ~60 fps
-            player.update(update_timer, inputs.keyboard, inputs.mouse, environment.camera_view);
+            // Only update player movement when not in cursor mode
+            if (!cursor_mode) {
+                player.update(update_timer, inputs.keyboard, inputs.mouse, environment.camera_view);
+            }
             
             // Update footstep audio for local player
             if (footstep_manager) {
@@ -952,7 +1027,10 @@ void scene_structure::idle_frame() {
         }
     }
     else if (spectator_mode) {
-        spectator.update(inputs.time_interval, inputs.keyboard, inputs.mouse, environment.camera_view);
+        // Only update spectator when not in cursor mode
+        if (!cursor_mode) {
+            spectator.update(inputs.time_interval, inputs.keyboard, inputs.mouse, environment.camera_view);
+        }
     }
     else if (follow_player_mode) {
         // Ne rien faire ici : position mise à jour dans display_frame
@@ -968,12 +1046,20 @@ void scene_structure::toggle_fps_mode()
     fps_mode = !fps_mode;
 
     if (fps_mode) {
+        // Reset cursor mode when switching to FPS mode
+        cursor_mode = false;
         // Hide cursor for FPS mode
         glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     }
     else {
         // Show cursor for normal mode
         glfwSetInputMode(window.glfw_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        
+        // Force the cursor to appear (for macOS specifically)
+        #ifdef __APPLE__
+            // Reset cursor position to center of window to ensure it appears
+            glfwSetCursorPos(window.glfw_window, window.width/2, window.height/2);
+        #endif
     }
 }
 
@@ -996,8 +1082,8 @@ void scene_structure::cleanup() {
 }
 
 void scene_structure::handlePlayerShooting() {
-    // Check if player is trying to shoot
-    if (inputs.mouse.click.left && player.getWeapon().canShoot()) {
+    // Check if player is trying to shoot and not in cursor mode
+    if (!cursor_mode && inputs.mouse.click.left && player.getWeapon().canShoot()) {
         // Perform shooting with hit detection using remote players
         std::lock_guard<std::mutex> lock(remote_players_mutex);
         HitInfo hit_result = player.performShoot(remote_players);
