@@ -2,8 +2,12 @@
 
 
 
-LoginUI::LoginUI() : login_button_clicked(false) {}
+LoginUI::LoginUI() : login_button_clicked(false) {
+    
+}
 
+LoginUI::~LoginUI() {
+}
 
 void LoginUI::initialize() {
     
