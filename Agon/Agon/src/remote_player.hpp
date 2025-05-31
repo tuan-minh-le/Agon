@@ -1,22 +1,20 @@
 #pragma once
 
 #include "cgp/cgp.hpp"
-#include <cmath> // For std::atan2, std::isfinite
-#include <iostream> // For std::cerr
+#include <cmath> 
+#include <iostream>
 
 struct RemotePlayer {
     cgp::vec3 position;
     cgp::rotation_transform orientation;
     cgp::mesh_drawable model_drawable;
-    cgp::rotation_transform initial_model_rotation; // May become unused if base mesh is pre-rotated
+    cgp::rotation_transform initial_model_rotation;
     bool initialized_on_gpu;
-    cgp::mesh stored_mesh; // Store mesh data until we can safely initialize on GPU
+    cgp::mesh stored_mesh;
 
     RemotePlayer()
         : position({0,0,0}), 
           orientation(), 
-          // Initialize initial_model_rotation to make model upright and face correct direction
-          // Includes 180-degree correction to fix reversed orientation from camera matrix
           initial_model_rotation(cgp::rotation_transform::from_axis_angle({1,0,0}, cgp::Pi/2.0f) * cgp::rotation_transform::from_axis_angle({0,0,1}, cgp::Pi)),
           initialized_on_gpu(false)
     {}
@@ -83,10 +81,6 @@ struct RemotePlayer {
             position = cgp::vec3(0, 0, 0);
         }
         
-        // Extract rotation directly from the camera view matrix
-        // The aim_direction_matrix_arg is the camera's view matrix
-        // Instead of trying to extract yaw angles (which are limited to [-π, π]),
-        // we extract the full rotation transform directly from the camera matrix
         try {
             // Get the inverse of the view matrix to get the camera frame matrix
             cgp::mat4 camera_frame_matrix = inverse(aim_direction_matrix_arg);

@@ -13,30 +13,24 @@ Apartment::Apartment()
 
 void Apartment::initialize()
 {
-    // Clear any existing data before initialization
     clear();
 
-    // Load texture resources with REPEAT wrapping for better tiling
     floor_texture.load_and_initialize_texture_2d_on_gpu("assets/floor.jpg", GL_REPEAT, GL_REPEAT);
     ceiling_texture.load_and_initialize_texture_2d_on_gpu("assets/ceiling.jpg", GL_REPEAT, GL_REPEAT);
     
-    // Use enhanced texture filtering for wall texture to prevent stretching and aliasing
     wall_texture.load_and_initialize_texture_2d_on_gpu(
         "assets/wall.jpg", 
         GL_REPEAT, GL_REPEAT,
         GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
     
-    // Also apply enhanced filtering to door texture
     door_texture.load_and_initialize_texture_2d_on_gpu(
         "assets/wall.jpg", 
         GL_REPEAT, GL_REPEAT, 
         GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
 
-    // Create all geometry with textures
     create_floor();
     create_ceiling();
 
-    // Load grid and create walls/doors
     auto grid = load_layout_from_csv("assets/layout.csv");
     create_walls_from_grid(grid);
 }
@@ -89,7 +83,7 @@ void Apartment::compute_grid_bounds(const std::vector<std::vector<char>>& grid, 
         }
     }
     if (min_i > max_i || min_j > max_j) {
-        min_i = min_j = 0; max_i = max_j = 0; // fallback if empty
+        min_i = min_j = 0; max_i = max_j = 0;
     }
 }
 
@@ -108,7 +102,7 @@ void Apartment::create_floor() {
         { x0 - width / 2, y0 + length / 2, 0 });
     float tiling_factor = width / 2.0f;
     floor_mesh.uv = { {0,0}, {tiling_factor,0}, {tiling_factor,tiling_factor}, {0,tiling_factor} };
-    floor_mesh.fill_empty_field(); // Fill normals and other attributes
+    floor_mesh.fill_empty_field();
     floor.initialize_data_on_gpu(floor_mesh, mesh_drawable::default_shader, floor_texture);
     floor.material.phong.ambient = 0.5f;
     floor.material.phong.diffuse = 0.6f;
@@ -130,34 +124,31 @@ void Apartment::create_ceiling() {
         { x0 - width / 2, y0 + length / 2, room_height });
     float tiling_factor = width / 2.5f;
     ceiling_mesh.uv = { {0,0}, {tiling_factor,0}, {tiling_factor,tiling_factor}, {0,tiling_factor} };
-    ceiling_mesh.fill_empty_field(); // Fill normals and other attributes
+    ceiling_mesh.fill_empty_field(); 
     ceiling.initialize_data_on_gpu(ceiling_mesh, mesh_drawable::default_shader, ceiling_texture);
 }
 
 void Apartment::create_walls()
 {
-    // Define wall positions and dimensions for a 3-room apartment
-    // Living room, bedroom, and bathroom
-    walls.clear(); // Ensure walls container is empty before adding new walls
-    wall_positions.clear(); // Clear collision data
+
+    // Clear all data structures before generating 
+    walls.clear(); 
+    wall_positions.clear(); 
     wall_dimensions.clear();
 
-    // Wall texture tiling factors - adjusted for consistent look with ceiling
     float horizontal_tiling = 2.0f;
     float vertical_tiling = 1.0f;
 
     // Calculate specific positions for clarity
-    float left_edge = -apartment_width / 2;    // -5.0
-    float right_edge = apartment_width / 2;    // 5.0
-    float back_edge = -apartment_length / 2;   // -6.0
-    float front_edge = apartment_length / 2;   // 6.0
+    float left_edge = -apartment_width / 2;
+    float right_edge = apartment_width / 2;    
+    float back_edge = -apartment_length / 2;
+    float front_edge = apartment_length / 2;
 
-    // Interior wall positions
     float bedroom_x = 2.0f;
-    float bathroom_y = apartment_length / 4;   // 3.0
+    float bathroom_y = apartment_length / 4;
 
-    // External walls
-    // Wall 1: Back wall
+
     {
         mesh wall_mesh = mesh_primitive_quadrangle(
             { left_edge, back_edge, 0 },
@@ -171,12 +162,10 @@ void Apartment::create_walls()
         wall.initialize_data_on_gpu(wall_mesh, mesh_drawable::default_shader, wall_texture);
         walls.push_back(wall);
 
-        // Store wall collision data - centered at middle of wall
         wall_positions.push_back({ 0, back_edge, room_height / 2 });
-        wall_dimensions.push_back({ apartment_width, 0.2f, room_height }); // Slightly thicker for better collision
+        wall_dimensions.push_back({ apartment_width, 0.2f, room_height });
     }
 
-    // Wall 2: Front wall
     {
         mesh wall_mesh = mesh_primitive_quadrangle(
             { left_edge, front_edge, 0 },
@@ -194,7 +183,6 @@ void Apartment::create_walls()
         wall_dimensions.push_back({ apartment_width, 0.2f, room_height });
     }
 
-    // Wall 3: Left wall
     {
         mesh wall_mesh = mesh_primitive_quadrangle(
             { left_edge, back_edge, 0 },
@@ -212,7 +200,6 @@ void Apartment::create_walls()
         wall_dimensions.push_back({ 0.2f, apartment_length, room_height });
     }
 
-    // Wall 4: Right wall
     {
         mesh wall_mesh = mesh_primitive_quadrangle(
             { right_edge, back_edge, 0 },
@@ -230,8 +217,6 @@ void Apartment::create_walls()
         wall_dimensions.push_back({ 0.2f, apartment_length, room_height });
     }
 
-    // Interior Walls
-    // Bedroom divider wall - full length from back to bathroom wall
     {
         mesh wall_mesh = mesh_primitive_quadrangle(
             { bedroom_x, back_edge, 0 },
@@ -252,7 +237,6 @@ void Apartment::create_walls()
         wall_dimensions.push_back({ 0.2f, length_y, room_height });
     }
 
-    // Bathroom divider wall - full length from left to bedroom wall
     {
         mesh wall_mesh = mesh_primitive_quadrangle(
             { left_edge, bathroom_y, 0 },
@@ -266,7 +250,6 @@ void Apartment::create_walls()
         wall.initialize_data_on_gpu(wall_mesh, mesh_drawable::default_shader, wall_texture);
         walls.push_back(wall);
 
-        // Position at center of wall section
         float midpoint_x = (left_edge + bedroom_x) / 2;
         float length_x = bedroom_x - left_edge;
         wall_positions.push_back({ midpoint_x, bathroom_y, room_height / 2 });
@@ -292,7 +275,6 @@ void Apartment::create_walls()
     }
 }
 
-// Helper: Load grid layout from CSV
 std::vector<std::vector<char>> Apartment::load_layout_from_csv(const std::string& filename) {
     std::vector<std::vector<char>> grid;
     std::ifstream file(filename);
@@ -311,7 +293,6 @@ std::vector<std::vector<char>> Apartment::load_layout_from_csv(const std::string
     return grid;
 }
 
-// Grid-based wall/door generation - simplified approach
 void Apartment::create_walls_from_grid(const std::vector<std::vector<char>>& grid) {
     walls.clear();
     wall_positions.clear();
@@ -368,41 +349,30 @@ void Apartment::create_walls_from_grid(const std::vector<std::vector<char>>& gri
                 // Door cell - create door frame with opening
                 float x = x0 + j * cell_size;
                 float y = y0 + i * cell_size;
-                
-                // Door is just a cell with partial walls (opening in the middle)
-                // We'll create walls on all sides except where the door opening is
-                
-                // For now, always make the door opening on the south side
-                // North wall
+
                 create_wall_segment(
                     x, y, x + cell_size, y, 
                     0, room_height, wall_thickness, true);
                 
-                // East wall
                 create_wall_segment(
                     x + cell_size, y, x + cell_size, y + cell_size, 
                     0, room_height, wall_thickness, false);
                 
-                // West wall
                 create_wall_segment(
                     x, y, x, y + cell_size, 
                     0, room_height, wall_thickness, false);
                 
-                // South wall with door opening (create two segments)
                 float door_width = 0.6f;
                 float door_position = (cell_size - door_width) / 2;
                 
-                // Left segment of south wall
                 create_wall_segment(
                     x, y + cell_size, x + door_position, y + cell_size, 
                     0, room_height, wall_thickness, true);
                 
-                // Right segment of south wall
                 create_wall_segment(
                     x + door_position + door_width, y + cell_size, x + cell_size, y + cell_size, 
                     0, room_height, wall_thickness, true);
                 
-                // Top of door frame
                 create_wall_segment(
                     x + door_position, y + cell_size, x + door_position + door_width, y + cell_size,
                     room_height * 0.7f, room_height, wall_thickness, true);
@@ -410,9 +380,6 @@ void Apartment::create_walls_from_grid(const std::vector<std::vector<char>>& gri
         }
     }
     
-    // Debug output
-    std::cout << "Created " << walls.size() << " wall segments" << std::endl;
-    std::cout << "Collision boxes: " << wall_positions.size() << std::endl;
 }
 
 bool Apartment::check_collision(const cgp::vec3& position, float radius)
@@ -531,7 +498,7 @@ void Apartment::create_door(float x1, float x2, float y, float z0, float z1, flo
         float door_width_scale = door_width / cell_size;
         float door_height_scale = (z1 - (z0 + door_height)) / cell_size;
         top_frame.uv = { {0,0}, {door_width_scale,0}, {door_width_scale,door_height_scale}, {0,door_height_scale} };
-        top_frame.fill_empty_field(); // Fill normals and other missing data
+        top_frame.fill_empty_field(); 
         mesh_drawable top;
         top.initialize_data_on_gpu(top_frame, mesh_drawable::default_shader, wall_texture);
         walls.push_back(top);
