@@ -15,7 +15,7 @@ void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& windo
     hp = 100;
 
     movement_speed = 6.0f;
-    height = 1.9f;
+    height = 1.95f;
     position = cgp::vec3(-3.f, -3.f, height);
     collision_radius = 0.5f;
 
@@ -37,8 +37,7 @@ void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& windo
 
     camera.initialize(inputs, window);
     camera.set_rotation_axis_z(); // Sets z axis as the height for camera rotation and (x,y) for ground
-    camera.look_at(position, position + cgp::vec3(1, 0, 0)); // Sets camera at position and looks at 1 unit along x axis
-
+    camera.look_at(position, position + cgp::vec3(0.2, 0, 0)); // Sets camera at position and looks at 1 unit along x axis
     // Enable cursor trapping for no-click rotation
     camera.is_cursor_trapped = true;
 
@@ -58,7 +57,8 @@ void Player::initialise(cgp::input_devices& inputs, cgp::window_structure& windo
 void Player::set_initial_model_properties(const cgp::mesh& base_mesh_data, const cgp::rotation_transform& initial_rotation_transform) {
     initial_model_rotation = initial_rotation_transform; // Store the initial rotation
     player_visual_model.initialize_data_on_gpu(base_mesh_data);
-    player_visual_model.model.set_scaling(0.6f);
+    player_visual_model.model.set_scaling(0.9f);
+    // Translation will be handled dynamically in the update method
     // The base_mesh_data is already centered, scaled, and rotated by initial_player_model_rotation in scene.cpp
     // So, we don't need to apply initial_model_rotation.matrix() to player_visual_model.model.rotation here.
     // The player_visual_model.model.rotation will be updated in Player::update based on camera orientation.
@@ -233,14 +233,14 @@ void Player::update(float dt, const cgp::inputs_keyboard_parameters& keyboard, c
 
     weapon.update(dt);
 
-    // Update camera position
-    // camera.camera_model.position_camera = position; // Original line
-    float camera_forward_offset = 0.5f; // Adjust this distance as needed
+    // Update camera position - reduce forward offset to align better with model
+    float camera_forward_offset = 0.1f; // Reduced from 0.5f to better align with model
     camera.camera_model.position_camera = position + camera.camera_model.front() * camera_forward_offset;
     camera_view_matrix = camera.camera_model.matrix_view();
 
-    // Update player model's visual properties
-    player_visual_model.model.translation = position;
+    // Update player model's visual properties with offset to the right
+    cgp::vec3 right_offset = camera.camera_model.right() * 0.2f; // Increased right offset for better visibility
+    player_visual_model.model.translation = position + right_offset;
     player_visual_model.model.translation.z -= 0.8f; // Adjusted to lower player more
 
     // Model should rotate with camera's yaw, around the Z-axis.
