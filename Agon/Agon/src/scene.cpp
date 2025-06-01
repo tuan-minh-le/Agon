@@ -911,6 +911,24 @@ void scene_structure::keyboard_event()
 
 
 void scene_structure::idle_frame() {
+    // Check player HP and handle death automatically
+    if (player.getHP() <= 0 && !death_pause) {
+        player.die();
+        death_pause = true;
+        death_timer = 0.0f;
+
+        
+        fps_mode = false;
+        spectator_mode = true;
+        follow_player_mode = false;
+
+       
+        spectator.position = player.getPosition();
+        spectator.camera.camera_model = player.camera.camera_model;
+
+        std::cout << "Player died (auto). Spectator mode activated." << std::endl;
+    }
+
     if (death_pause) {
         death_timer += inputs.time_interval;
         // Bloque les mouvements et la caméra pendant la pause de mort
