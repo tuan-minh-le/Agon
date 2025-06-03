@@ -389,7 +389,7 @@ void scene_structure::setupWebSocketHandlers() {
                             }
                             
                             remote_player_mesh_data.centered();
-                            remote_player_mesh_data.scale(0.16f);
+                            remote_player_mesh_data.scale(0.7f);
                             remote_player_mesh_data.rotate({1, 0, 0}, cgp::Pi / 2.0f); 
                             remote_player_mesh_data.rotate({0, 0, 1}, cgp::Pi); // Face forward
                             
@@ -402,7 +402,6 @@ void scene_structure::setupWebSocketHandlers() {
                             std::cout << "Mesh data stored for: " << remote_username << std::endl;
                             
                             std::cout << "About to set scaling for: " << remote_username << std::endl;
-                            new_player.model_drawable.model.set_scaling(0.6f); // Same scaling as local player
                             std::cout << "Scaling set for: " << remote_username << std::endl;
                             
                             std::cout << "Successfully initialized mesh for remote player: " << remote_username << std::endl;

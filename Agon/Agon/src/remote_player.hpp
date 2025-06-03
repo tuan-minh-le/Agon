@@ -39,7 +39,8 @@ struct RemotePlayer {
             
             std::cout << "Mesh validation passed, calling model_drawable.initialize_data_on_gpu" << std::endl;
             model_drawable.initialize_data_on_gpu(stored_mesh);
-            model_drawable.model.set_scaling(0.6f);
+            model_drawable.model.set_scaling(1.25f);
+            model_drawable.model.translation.z -= 0.8f; 
             initialized_on_gpu = true;
             std::cout << "model_drawable.initialize_data_on_gpu completed successfully" << std::endl;
             
