@@ -591,10 +591,11 @@ void scene_structure::display_frame()
                 auto it = remote_players.find(target_username);
                 if (it != remote_players.end()) {
                     const RemotePlayer& target = it->second;
+                    // Copier la position et la rotation de la caméra du joueur suivi
+                    spectator.camera.camera_model.position_camera = target.position;
+                    cgp::vec3 target_front = target.orientation * cgp::vec3(0, 0, -1);
+                    spectator.camera.camera_model.look_at(target.position, target.position + target_front);
 
-                   // Copier la position et la rotation de la caméra du joueur suivi
-                    spectator.camera.camera_model.position_camera = target.position + cgp::vec3(0, -1.0f, 0);
-                    spectator.camera.camera_model.look_at(spectator.camera.camera_model.position_camera, target.position);
                     environment.camera_view = spectator.camera.camera_model.matrix_view();
                 }
             }
