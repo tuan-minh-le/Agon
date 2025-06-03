@@ -3,9 +3,13 @@
 #include <algorithm> 
 #include <cmath> 
 #include <iostream> 
+#include "environment.hpp" 
+#include <algorithm> 
+#include <cmath> 
+#include <iostream> 
 
 Player::Player()
-    :movement_speed(0.f), height(0.f), position(0, 0, 0),is_dead(false),
+    :movement_speed(0.f), height(0.f), position(0, 0, 0),is_dead(false),is_dead(false),
     velocity(0, 0, 0), acceleration(15.0f), deceleration(10.0f), max_velocity(6.0f),
     current_pitch(0.0f), max_pitch_up(85.0f), max_pitch_down(-85.0f), isGrounded(true), collision_radius(0.f),
     shooting_flag(false), moving_flag(false) { 
