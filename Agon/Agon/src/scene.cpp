@@ -592,7 +592,7 @@ void scene_structure::display_frame()
                 if (it != remote_players.end()) {
                     const RemotePlayer& target = it->second;
                     // Copier la position et la rotation de la caméra du joueur suivi
-                    spectator.camera.camera_model.position_camera = target.position + cgp::vec3(0, 1.9f, 0);
+                    spectator.camera.camera_model.position_camera = target.position + cgp::vec3(-2.0f, 1.9f, 0);
                     cgp::vec3 front_direction = target.orientation * cgp::vec3(0, 1, 0); 
                     spectator.camera.camera_model.look_at(
                     target.position, 
