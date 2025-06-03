@@ -593,10 +593,8 @@ void scene_structure::display_frame()
                 if (it != remote_players.end()) {
                     const RemotePlayer& target = it->second;
 
-                    // Position caméra = position du joueur + ajustement vertical
-                    spectator.camera.camera_model.position_camera = target.position + cgp::vec3(0, 0, 1.6f); // hauteur des yeux
-
-                    // Orientation caméra = même orientation que le joueur (extrait de target.orientation)
+                   // Copier la position et la rotation de la caméra du joueur suivi
+                    spectator.camera.camera_model.position_camera = target.position + cgp::vec3(0, -1.0f, 0);
                     spectator.camera.camera_model.look_at(spectator.camera.camera_model.position_camera, target.position);
                     environment.camera_view = spectator.camera.camera_model.matrix_view();
                 }
@@ -889,7 +887,7 @@ void scene_structure::keyboard_event()
         // Active automatiquement le mode spectateur libre
         fps_mode = false;
         spectator_mode = true;
-        follow_player_mode = false;
+        follow_player_mode = true;
 
         // Aligne la caméra spectateur sur celle du joueur
         spectator.position = player.getPosition();
@@ -913,7 +911,7 @@ void scene_structure::keyboard_event()
 
 void scene_structure::idle_frame() {
     // Check player HP and handle death automatically
-    if (player.getHP() <= 0 && !death_pause) {
+/*    if (player.getHP() <= 0 && !death_pause) {
         player.die();
         death_pause = true;
         death_timer = 0.0f;
@@ -921,14 +919,14 @@ void scene_structure::idle_frame() {
         
         fps_mode = false;
         spectator_mode = true;
-        follow_player_mode = false;
+        follow_player_mode = true;
 
        
         spectator.position = player.getPosition();
         spectator.camera.camera_model = player.camera.camera_model;
 
         std::cout << "Player died (auto). Spectator mode activated." << std::endl;
-    }
+    } */
 
     if (death_pause) {
         death_timer += inputs.time_interval;
